@@ -1,0 +1,31 @@
+{
+  "name": "limitd-client",
+  "version": "1.0.0",
+  "description": "limitd client for node.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "author": "José F. Romaniello <jfromaniello@gmail.com> (http://joseoncode.com)",
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "~3.7.0",
+    "pb-stream": "~1.0.3",
+    "protobufjs": "~4.0.0-b2",
+    "randomstring": "~1.0.5",
+    "reconnect-net": "0.0.0"
+  },
+  "devDependencies": {
+    "chai": "~2.2.0",
+    "mocha": "~2.2.4",
+    "through": "~2.3.7"
+  },
+  "homepage": "https://github.com/limitd/node-client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/limitd/node-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/limitd/node-client/issues"
+  }
+}
