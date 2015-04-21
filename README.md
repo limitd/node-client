@@ -13,6 +13,7 @@ npm install limitd-client --save
 ## Example usage
 
 ```javascript
+var LimitdClient = require('limitd-client');
 var limitd = new LimitdClient('limitd://localhost:9001');
 
 //express middleware
