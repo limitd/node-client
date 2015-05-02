@@ -11,8 +11,6 @@ var ErrorResponse    = require('./lib/protocol').ErrorResponse;
 
 var decoder          = require('pb-stream').decoder;
 var encoder          = require('pb-stream').encoder;
-var ResponseDecoder  = decoder(ResponseMessage);
-
 
 var DEFAULT_PORT = 9231;
 var DEFAULT_HOST = 'localhost';
@@ -38,8 +36,7 @@ LimitdClient.prototype.connect = function (done) {
   var client = this;
 
   this.socket = reconnect(function (stream) {
-
-    stream.pipe(ResponseDecoder).on('data', function (response) {
+    stream.pipe(decoder(ResponseMessage)).on('data', function (response) {
       client.emit('response', response);
       client.emit('response_' + response.request_id, response);
     });
