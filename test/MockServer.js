@@ -6,14 +6,15 @@ var EventEmitter = require('events').EventEmitter;
 
 var pbStream = require('pb-stream');
 var protocol = require('../lib/protocol');
-var decoder  = pbStream.decoder(protocol.Request);
-var encoder  = pbStream.encoder(protocol.Response);
 
 function MockServer (options) {
   EventEmitter.call(this);
   var self = this;
   this._options = options || {};
   this._sockets = [];
+
+  var decoder  = pbStream.decoder(protocol.Request);
+  var encoder  = pbStream.encoder(protocol.Response);
 
   this._server = net.createServer(function (socket) {
     self._sockets.push(socket);

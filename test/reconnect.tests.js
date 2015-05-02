@@ -27,7 +27,6 @@ function mock_response (request, reply) {
 
 describe('reconnection', function () {
 
-
   it('should work', function (done) {
     var server = new MockServer();
     var client = new LimitdClient();
@@ -36,30 +35,18 @@ describe('reconnection', function () {
 
       client.once('ready', function () {
 
-        setTimeout(function () {
-          //turn of the mockserver
-          server.close();
-        }, 100);
+        server.close();
 
-        setTimeout(function () {
-          //start a new one and wait reconnection
-          server = new MockServer();
+        server = new MockServer();
 
-          server.on('request', mock_response)
-                .listen(function () {
-                  client.once('ready', function () {
-                    client.take('ip', '191.12.23.32', 1, done);
-                  }, 1000);
+        server.on('request', mock_response)
+              .listen(function () {
+                client.once('ready', function () {
+                  client.take('ip', '191.12.23.32', 1, done);
                 });
-
-
-        }, 1000);
-
+              });
       });
     });
 
-
   });
-
-
 });
