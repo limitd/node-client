@@ -13,7 +13,10 @@ function MockServer (options) {
   EventEmitter.call(this);
   var self = this;
   this._options = options || {};
+  this._sockets = [];
+
   this._server = net.createServer(function (socket) {
+    self._sockets.push(socket);
 
     socket.pipe(decoder)
           .pipe(through(function (request) {
@@ -38,6 +41,11 @@ MockServer.prototype.listen = function (done) {
 };
 
 MockServer.prototype.close = function (done) {
+  this._sockets.forEach(function (socket) {
+    try {
+      socket.destroy();
+    } catch(err) {}
+  });
   this._server.close(done);
 };
 
