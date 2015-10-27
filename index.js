@@ -97,7 +97,7 @@ LimitdClient.prototype._request = function (request, type, done) {
 };
 
 LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
-  if (typeof count === 'undefined' || typeof done === 'undefined') {
+  if (typeof count === 'undefined' && typeof done === 'undefined') {
     done = null;
     count = 1;
   } else if (typeof count === 'function') {
@@ -131,7 +131,7 @@ LimitdClient.prototype.wait = function (type, key, count, done) {
 
 LimitdClient.prototype.reset =
 LimitdClient.prototype.put = function (type, key, count, done) {
-  if (typeof count === 'undefined' || typeof done === 'undefined') {
+  if (typeof count === 'undefined' && typeof done === 'undefined') {
     done = null;
     count = 'all';
   } else if (typeof count === 'function') {
