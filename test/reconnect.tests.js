@@ -25,7 +25,7 @@ function mock_response (request, reply) {
 }
 
 
-describe.skip('reconnection', function () {
+describe('reconnection', function () {
 
   it('should work', function (done) {
     var server = new MockServer();
@@ -45,6 +45,8 @@ describe.skip('reconnection', function () {
                   client.take('ip', '191.12.23.32', 1, done);
                 });
               });
+      }).once('error', function (err) {
+        console.log('ignore error', err.code);
       });
     });
 

@@ -47,6 +47,11 @@ LimitdClient.prototype.connect = function (done) {
     client.writer.pipe(client.stream);
 
     client.emit('ready');
+
+    stream.on('error', function (err) {
+      client.emit('error', err);
+    });
+
   }).once('connect', function () {
     process.nextTick(function () {
       client.emit('connect');
