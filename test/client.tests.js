@@ -44,6 +44,33 @@ describe('limitd client', function () {
   });
 
 
+  it('should be able to send PUT requests', function (done) {
+    server.once('request', function (request) {
+      assert.isString(request.id);
+
+      assert.equal(request.method, protocol.Request.Method.PUT);
+      assert.equal(request.type, 'ip');
+      assert.equal(request.all, true);
+
+      done();
+    });
+
+    client.put('ip', '191.12.23.32');
+  });
+
+  it('should be able to send status requests', function (done) {
+    server.once('request', function (request) {
+      assert.isString(request.id);
+
+      assert.equal(request.method, protocol.Request.Method.STATUS);
+      assert.equal(request.type, 'ip');
+
+      done();
+    });
+
+    client.status('ip', '191.12.23.32', function () {});
+  });
+
   it('should be able to parse the response of TAKE', function (done) {
 
     server.once('request', function (request, reply) {
