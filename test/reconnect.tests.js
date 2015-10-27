@@ -25,7 +25,7 @@ function mock_response (request, reply) {
 }
 
 
-describe('reconnection', function () {
+describe.skip('reconnection', function () {
 
   it('should work', function (done) {
     var server = new MockServer();
