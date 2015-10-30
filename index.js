@@ -11,6 +11,7 @@ var ErrorResponse    = require('./lib/protocol').ErrorResponse;
 
 var decoder          = require('pb-stream').decoder;
 var encoder          = require('pb-stream').encoder;
+var cb               = require('cb');
 
 var DEFAULT_PORT = 9231;
 var DEFAULT_HOST = 'localhost';
@@ -71,12 +72,23 @@ LimitdClient.prototype.disconnect = function () {
   this.socket.disconnect();
 };
 
-LimitdClient.prototype._request = function (request, type, done) {
+LimitdClient.prototype._request = function (request, type, _callback) {
+  var callback = _callback;
+
+  if (_callback && request.method !== RequestMessage.Method.WAIT) {
+    callback = cb(function (err, result) {
+      if (err instanceof cb.TimeoutError) {
+        return _callback(new Error('request timeout'));
+      }
+      _callback(err, result);
+    }).timeout(1000);
+  }
+
   if (!this.stream || !this.stream.writable) {
     var err = new Error('The socket is closed.');
-    if (done) {
+    if (callback) {
       return process.nextTick(function () {
-        done(err);
+        callback(err);
       });
     } else {
       throw err;
@@ -85,14 +97,14 @@ LimitdClient.prototype._request = function (request, type, done) {
 
   this.stream.write(request.encodeDelimited().toBuffer());
 
-  if (!done) return;
+  if (!callback) return;
 
   this.once('response_' + request.id, function (response) {
     if (response.type === ResponseMessage.Type.ERROR &&
         response['.limitd.ErrorResponse.response'].type === ErrorResponse.Type.UNKNOWN_BUCKET_TYPE) {
-      return done(new Error(type + ' is not a valid bucket type'));
+      return callback(new Error(type + ' is not a valid bucket type'));
     }
-    done(null, response['.limitd.TakeResponse.response'] || response['.limitd.PutResponse.response'] || response['.limitd.StatusResponse.response']);
+    callback(null, response['.limitd.TakeResponse.response'] || response['.limitd.PutResponse.response'] || response['.limitd.StatusResponse.response']);
   });
 };
 

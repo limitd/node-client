@@ -127,4 +127,17 @@ describe('limitd client', function () {
   });
 
 
+  it('should timeout a request when there is no response from the server', function (done) {
+    server.once('request', function () {
+      //noop
+    });
+
+    client.take('ip', '191.timeout.23.32', 1, function (err){
+      assert.ok(err);
+      assert.equal(err.message, 'request timeout');
+      done();
+    });
+  });
+
+
 });
