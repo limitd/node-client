@@ -9,6 +9,7 @@
   "author": "José F. Romaniello <jfromaniello@gmail.com> (http://joseoncode.com)",
   "license": "MIT",
   "dependencies": {
+    "cb": "~0.1.0",
     "lodash": "~3.7.0",
     "pb-stream": "~1.0.3",
     "protobufjs": "~4.0.0-b2",
