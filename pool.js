@@ -53,7 +53,7 @@ LimitdPool.prototype._getClient = function () {
   return this._clients[this._current_client];
 };
 
-Object.keys(LimitdClient).forEach(function (method) {
+Object.keys(LimitdClient.prototype).forEach(function (method) {
   LimitdPool.prototype[method] = function () {
    var client = this._getClient();
    client[method].apply(client, arguments);
