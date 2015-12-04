@@ -178,4 +178,15 @@ LimitdClient.prototype.status = function (type, key, done) {
   return this._request(request, type, done);
 };
 
+LimitdClient.prototype.ping = function (done) {
+  var request = new RequestMessage({
+    'id':     randomstring.generate(7),
+    'type':   '',
+    'key':    '',
+    'method': RequestMessage.Method.PING,
+  });
+
+  return this._request(request, '', done);
+};
+
 module.exports = LimitdClient;
