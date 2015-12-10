@@ -13,20 +13,23 @@ var decoder          = require('pb-stream').decoder;
 var encoder          = require('pb-stream').encoder;
 var cb               = require('cb');
 
-var DEFAULT_PORT = 9231;
-var DEFAULT_HOST = 'localhost';
+var defaults = {
+  port:    9231,
+  host:    'localhost',
+  timeout: 1000
+};
 
 function LimitdClient (options, done) {
   options = options || {};
+
   EventEmitter.call(this);
+
   if (typeof options === 'string') {
     options = _.pick(url.parse(options), ['port', 'hostname']);
-    options.port = parseInt(options.port || DEFAULT_PORT, 10);
-  } else {
-    options.port = options.port || DEFAULT_PORT;
-    options.host = options.host || DEFAULT_HOST;
+    options.port = typeof options.port !== 'undefined' ? parseInt(options.port, 10) : undefined;
   }
-  this._options = options;
+
+  this._options = _.extend({}, defaults, options);
   this.connect(done);
 }
 
@@ -74,6 +77,7 @@ LimitdClient.prototype.disconnect = function () {
 
 LimitdClient.prototype._request = function (request, type, _callback) {
   var callback = _callback;
+  var options = this._options;
 
   if (_callback && request.method !== RequestMessage.Method.WAIT) {
     callback = cb(function (err, result) {
@@ -81,7 +85,7 @@ LimitdClient.prototype._request = function (request, type, _callback) {
         return _callback(new Error('request timeout'));
       }
       _callback(err, result);
-    }).timeout(1000);
+    }).timeout(options.timeout);
   }
 
   if (!this.stream || !this.stream.writable) {
