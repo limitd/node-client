@@ -76,7 +76,6 @@ describe('limitd client', function () {
     server.once('request', function (request, reply) {
       var response = new Response({
         request_id: request.id,
-        type: Response.Type.TAKE
       });
 
       var takeResponse = new TakeResponse({
@@ -106,8 +105,7 @@ describe('limitd client', function () {
 
     server.once('request', function (request, reply) {
       var response = new Response({
-        request_id: request.id,
-        type: Response.Type.ERROR
+        request_id: request.id
       });
 
       var errorResponse = new ErrorResponse({

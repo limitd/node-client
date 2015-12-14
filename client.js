@@ -117,7 +117,7 @@ LimitdClient.prototype._request = function (request, type, _callback) {
   client.pending_requests[request.id] = function (response) {
     delete client.pending_requests[request.id];
 
-    if (response.type === ResponseMessage.Type.ERROR &&
+    if (response['.limitd.ErrorResponse.response'] &&
         response['.limitd.ErrorResponse.response'].type === ErrorResponse.Type.UNKNOWN_BUCKET_TYPE) {
       return callback(new Error(type + ' is not a valid bucket type'));
     }

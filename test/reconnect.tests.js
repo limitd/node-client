@@ -8,8 +8,7 @@ var TakeResponse = protocol.TakeResponse;
 
 function mock_response (request, reply) {
   var response = new Response({
-    request_id: request.id,
-    type: Response.Type.TAKE
+    request_id: request.id
   });
 
   var takeResponse = new TakeResponse({
