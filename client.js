@@ -46,10 +46,10 @@ LimitdClient.prototype.connect = function (done) {
         var decoded;
         try {
           decoded = ResponseMessage.decode(chunk);
-          callback(null, decoded);
         } catch(err) {
-          callback(err);
+          return callback(err);
         }
+        callback(null, decoded);
       }))
       .on('data', function (response) {
         var response_handler = client.pending_requests[response.request_id];

@@ -7,7 +7,7 @@ var Response = protocol.Response;
 var TakeResponse = protocol.TakeResponse;
 var ErrorResponse = protocol.ErrorResponse;
 
-describe.only('limitd client', function () {
+describe('limitd client', function () {
   var server, client;
 
   before(function (done) {
