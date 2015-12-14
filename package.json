@@ -16,13 +16,12 @@
     "protobufjs": "~4.0.0-b2",
     "randomstring": "~1.0.5",
     "reconnect-net": "0.0.0",
-    "remove": "~0.1.5",
     "through2": "~2.0.0"
   },
   "devDependencies": {
     "chai": "~2.2.0",
     "mocha": "~2.2.4",
-    "through": "~2.3.7"
+    "through": "~2.3.8"
   },
   "homepage": "https://github.com/limitd/node-client",
   "repository": {

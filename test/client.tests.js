@@ -7,7 +7,7 @@ var Response = protocol.Response;
 var TakeResponse = protocol.TakeResponse;
 var ErrorResponse = protocol.ErrorResponse;
 
-describe('limitd client', function () {
+describe.only('limitd client', function () {
   var server, client;
 
   before(function (done) {
@@ -30,7 +30,6 @@ describe('limitd client', function () {
     it('should be able to send ' + method.toUpperCase() + ' requests', function (done) {
       server.once('request', function (request) {
         assert.isString(request.id);
-
         assert.equal(request.method, protocol.Request.Method[method.toUpperCase()]);
         assert.equal(request.type, 'ip');
         assert.equal(request.count, 1);

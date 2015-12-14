@@ -1,10 +1,10 @@
 var net  = require('net');
 var util = require('util');
-var through = require('through');
+var lps = require('length-prefixed-stream');
+var through2 = require('through2');
 
 var EventEmitter = require('events').EventEmitter;
 
-var pbStream = require('pb-stream');
 var protocol = require('../lib/protocol');
 
 function MockServer (options) {
@@ -13,23 +13,45 @@ function MockServer (options) {
   this._options = options || {};
   this._sockets = [];
 
-  var decoder  = pbStream.decoder(protocol.Request);
-  var encoder  = pbStream.encoder(protocol.Response);
+  // var decoder  = pbStream.decoder(protocol.Request);
+  // var encoder  = pbStream.encoder(protocol.Response);
 
   this._server = net.createServer(function (socket) {
     self._sockets.push(socket);
 
-    socket.pipe(decoder)
-          .pipe(through(function (request) {
+    socket.pipe(lps.decode())
+          .pipe(through2.obj(function (chunk, enc, callback) {
+            var decoded;
+            try {
+              decoded = protocol.Request.decode(chunk);
+            } catch(err) {
+              console.log(err);
+              return callback(err);
+            }
+
+            callback(null, decoded);
+          }))
+          .pipe(through2.obj(function (request, enc, callback) {
             var stream = this;
 
             var replier = function (response) {
-              stream.queue(response);
+              stream.push(response);
             };
 
             self.emit('request', request, replier);
+            callback();
           }))
-          .pipe(encoder)
+          .pipe(through2.obj(function (response, enc, callback) {
+            var encoded;
+
+            try {
+              encoded = response.encodeDelimited().toBuffer();
+            } catch(err) {
+              return callback(err);
+            }
+
+            callback(null, encoded);
+          }))
           .pipe(socket);
 
   });
