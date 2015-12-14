@@ -28,7 +28,7 @@ function LimitdClient (options, done) {
     options = _.pick(url.parse(options), ['port', 'hostname']);
     options.port = typeof options.port !== 'undefined' ? parseInt(options.port, 10) : undefined;
   }
-
+  this.pending_requests = {};
   this._options = _.extend({}, defaults, options);
   this.connect(done);
 }
@@ -52,8 +52,10 @@ LimitdClient.prototype.connect = function (done) {
         }
       }))
       .on('data', function (response) {
-        client.emit('response', response);
-        client.emit('response_' + response.request_id, response);
+        var response_handler = client.pending_requests[response.request_id];
+        if (response_handler) {
+          response_handler(response);
+        }
       });
 
     client.stream = stream;
@@ -86,6 +88,7 @@ LimitdClient.prototype.disconnect = function () {
 LimitdClient.prototype._request = function (request, type, _callback) {
   var callback = _callback;
   var options = this._options;
+  var client = this;
 
   if (_callback && request.method !== RequestMessage.Method.WAIT) {
     callback = cb(function (err, result) {
@@ -111,13 +114,17 @@ LimitdClient.prototype._request = function (request, type, _callback) {
 
   if (!callback) return;
 
-  this.once('response_' + request.id, function (response) {
+  client.pending_requests[request.id] = function (response) {
+    delete client.pending_requests[request.id];
+
     if (response.type === ResponseMessage.Type.ERROR &&
         response['.limitd.ErrorResponse.response'].type === ErrorResponse.Type.UNKNOWN_BUCKET_TYPE) {
       return callback(new Error(type + ' is not a valid bucket type'));
     }
-    callback(null, response['.limitd.TakeResponse.response'] || response['.limitd.PutResponse.response'] || response['.limitd.StatusResponse.response']);
-  });
+    callback(null, response['.limitd.TakeResponse.response'] ||
+                   response['.limitd.PutResponse.response']  ||
+                   response['.limitd.StatusResponse.response'] );
+  };
 };
 
 LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
