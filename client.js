@@ -4,14 +4,14 @@ var EventEmitter     = require('events').EventEmitter;
 var util             = require('util');
 var randomstring     = require('randomstring');
 var reconnect        = require('reconnect-net');
+var through2         = require('through2');
 
 var RequestMessage   = require('./lib/protocol').Request;
 var ResponseMessage  = require('./lib/protocol').Response;
 var ErrorResponse    = require('./lib/protocol').ErrorResponse;
 
-var decoder          = require('pb-stream').decoder;
-var encoder          = require('pb-stream').encoder;
-var cb               = require('cb');
+var lps = require('length-prefixed-stream');
+var cb = require('cb');
 
 var defaults = {
   port:    9231,
@@ -40,15 +40,23 @@ LimitdClient.prototype.connect = function (done) {
   var client = this;
 
   this.socket = reconnect(function (stream) {
-    stream.pipe(decoder(ResponseMessage)).on('data', function (response) {
-      client.emit('response', response);
-      client.emit('response_' + response.request_id, response);
-    });
+    stream
+      .pipe(lps.decode())
+      .pipe(through2.obj(function (chunk, enc, callback) {
+        var decoded;
+        try {
+          decoded = ResponseMessage.decode(chunk);
+          callback(null, decoded);
+        } catch(err) {
+          callback(err);
+        }
+      }))
+      .on('data', function (response) {
+        client.emit('response', response);
+        client.emit('response_' + response.request_id, response);
+      });
 
     client.stream = stream;
-
-    client.writer = encoder(RequestMessage);
-    client.writer.pipe(client.stream);
 
     client.emit('ready');
 
