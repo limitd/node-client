@@ -4,6 +4,7 @@ var EventEmitter     = require('events').EventEmitter;
 var util             = require('util');
 var randomstring     = require('randomstring');
 var reconnect        = require('reconnect-net');
+var failover         = require('tcp-client-failover');
 var through2         = require('through2');
 
 var RequestMessage   = require('./lib/protocol').Request;
@@ -15,21 +16,44 @@ var cb = require('cb');
 
 var defaults = {
   port:    9231,
-  host:    'localhost',
-  timeout: 1000
+  host:    'localhost'
 };
 
 function LimitdClient (options, done) {
-  options = options || {};
 
   EventEmitter.call(this);
+  
+  options = options || { hosts: [] };
 
-  if (typeof options === 'string') {
-    options = _.pick(url.parse(options), ['port', 'hostname']);
-    options.port = typeof options.port !== 'undefined' ? parseInt(options.port, 10) : undefined;
+  if (_.isArray(options)) {
+    options = {
+      hosts: options
+    };
   }
+
+  if (!options.hosts) {
+    options = {
+      timeout: options.timeout || undefined,
+      hosts: [ options ]
+    };
+  }
+
+  if (options.hosts.length === 0) {
+    options.hosts.push(defaults);
+  }
+
+  options.hosts = _.map(options.hosts, (host) => {
+    if (typeof host === 'string') {
+      host = _.pick(url.parse(host), ['port', 'hostname']);
+      host.port = typeof host.port !== 'undefined' ? parseInt(host.port, 10) : undefined;
+    }
+    return host;
+  });
+
+  options.timeout = options.timeout || 1000;
+
+  this._options = options;
   this.pending_requests = {};
-  this._options = _.extend({}, defaults, options);
   this.connect(done);
 }
 
@@ -37,52 +61,94 @@ util.inherits(LimitdClient, EventEmitter);
 
 LimitdClient.prototype.connect = function (done) {
   var options = this._options;
-  var client = this;
 
-  this.socket = reconnect(function (stream) {
-    stream
-      .pipe(lps.decode())
-      .pipe(through2.obj(function (chunk, enc, callback) {
-        var decoded;
-        try {
-          decoded = ResponseMessage.decode(chunk);
-        } catch(err) {
-          return callback(err);
-        }
-        callback(null, decoded);
-      }))
-      .on('data', function (response) {
-        var response_handler = client.pending_requests[response.request_id];
-        if (response_handler) {
-          response_handler(response);
-        }
-      });
+  if (options.hosts.length > 1) {
+    this._connectUsingFailover.bind(this)(done);
+  } else {
+    this._connectUsingReconnect.bind(this)(done);
+  }
+};
 
-    client.stream = stream;
+LimitdClient.prototype._connectUsingReconnect = function (done) {
+  var self = this;
+  var hostConfig = this._options.hosts[0];
 
-    client.emit('ready');
+  done = done || _.noop;
 
-    stream.on('error', function (err) {
-      client.emit('error', err);
+  self.socket = reconnect(self._onNewStream.bind(self))
+  .once('connect', function () {
+    setImmediate(function () {
+      self.emit('connect');
+      done();
     });
+  })
+  .on('close', function (has_error) {
+    self.emit('close', has_error);
+  })
+  .on('error', function (err) {
+    self.emit('error', err);
+  })
+  .connect(hostConfig.port, hostConfig.address || hostConfig.hostname || hostConfig.host);
+};
 
-  }).once('connect', function () {
-    process.nextTick(function () {
-      client.emit('connect');
+LimitdClient.prototype._connectUsingFailover = function (done) {
+  var self = this;
 
-      if (done) {
-        done();
-      }
+  done = done || _.noop;
+
+  self.failover = failover.connect(self._options.hosts)
+  .on('connected', (stream) => {
+    self._onNewStream(stream);
+    setImmediate(function () {
+      self.emit('connect');
+      done();
     });
-  }).on('close', function (has_error) {
-    client.emit('close', has_error);
-  }).on('error', function (err) {
-    client.emit('error', err);
-  }).connect(options.port, options.address || options.hostname || options.host);
+  })
+  .on('disconnected', function () {
+    self.emit('close');
+  })
+  .on('error', function (err) {
+    self.emit('error', err);
+  });
+};
+
+LimitdClient.prototype._onNewStream = function (stream) {
+  var self = this;
+
+  stream
+  .pipe(lps.decode())
+  .pipe(through2.obj(function (chunk, enc, callback) {
+    var decoded;
+    try {
+      decoded = ResponseMessage.decode(chunk);
+    } catch(err) {
+      return callback(err);
+    }
+    callback(null, decoded);
+  }))
+  .on('data', function (response) {
+    var response_handler = self.pending_requests[response.request_id];
+    if (response_handler) {
+      response_handler(response);
+    }
+  })
+  .on('error', function (err) {
+    self.emit('error', err);
+  });    
+
+  self.stream = stream;
+
+  self.emit('ready');
 };
 
 LimitdClient.prototype.disconnect = function () {
-  this.socket.disconnect();
+  if (this.socket) {
+    this.socket.disconnect();
+  }
+
+  if (this.failover) {
+    this.failover.disconnect();
+  }
 };
 
 LimitdClient.prototype._request = function (request, type, _callback) {

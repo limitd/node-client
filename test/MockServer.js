@@ -19,48 +19,50 @@ function MockServer (options) {
   this._server = net.createServer(function (socket) {
     self._sockets.push(socket);
 
-    socket.pipe(lps.decode())
-          .pipe(through2.obj(function (chunk, enc, callback) {
-            var decoded;
-            try {
-              decoded = protocol.Request.decode(chunk);
-            } catch(err) {
-              console.log(err);
-              return callback(err);
-            }
+    socket
+    .pipe(lps.decode())
+    .pipe(through2.obj(function (chunk, enc, callback) {
+      var decoded;
+      try {
+        decoded = protocol.Request.decode(chunk);
+      } catch(err) {
+        return callback(err);
+      }
 
-            callback(null, decoded);
-          }))
-          .pipe(through2.obj(function (request, enc, callback) {
-            var stream = this;
+      callback(null, decoded);
+    }))
+    .pipe(through2.obj(function (request, enc, callback) {
+      var stream = this;
 
-            var replier = function (response) {
-              stream.push(response);
-            };
+      var replier = function (response) {
+        stream.push(response);
+      };
 
-            self.emit('request', request, replier);
-            callback();
-          }))
-          .pipe(through2.obj(function (response, enc, callback) {
-            var encoded;
+      self.emit('request', request, replier);
+      callback();
+    }))
+    .pipe(through2.obj(function (response, enc, callback) {
+      var encoded;
 
-            try {
-              encoded = response.encodeDelimited().toBuffer();
-            } catch(err) {
-              return callback(err);
-            }
+      try {
+        encoded = response.encodeDelimited().toBuffer();
+      } catch(err) {
+        return callback(err);
+      }
 
-            callback(null, encoded);
-          }))
-          .pipe(socket);
-
+      callback(null, encoded);
+    }))
+    .pipe(socket);
   });
 }
 
 util.inherits(MockServer, EventEmitter);
 
 MockServer.prototype.listen = function (done) {
-  this._server.listen(this._options.port || 9231, done);
+  var listener = this._server.listen(this._options.port || 9231, () => {
+    this._server.port = listener.address().port;
+    done();
+  });
 };
 
 MockServer.prototype.close = function (done) {
