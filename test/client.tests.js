@@ -39,7 +39,6 @@ describe('limitd client', function () {
 
       client[method]('ip', '191.12.23.32', 1);
     });
-
   });
 
 
