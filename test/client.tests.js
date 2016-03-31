@@ -7,6 +7,8 @@ var Response = protocol.Response;
 var TakeResponse = protocol.TakeResponse;
 var ErrorResponse = protocol.ErrorResponse;
 
+console.log(process.env.PROTOCOL);
+
 describe('limitd client', function () {
   var server, client;
 
@@ -43,11 +45,11 @@ describe('limitd client', function () {
   });
 
 
-  it('should be able to send PUT requests', function (done) {
+  it.only('should be able to send PUT requests', function (done) {
     server.once('request', function (request) {
       assert.isString(request.id);
 
-      assert.equal(request.method, protocol.Request.Method.PUT);
+      assert.equal(request.method, 'PUT');
       assert.equal(request.type, 'ip');
       assert.equal(request.all, true);
 

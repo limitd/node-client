@@ -1,39 +1,69 @@
-var url              = require('url');
-var _                = require('lodash');
 var EventEmitter     = require('events').EventEmitter;
 var util             = require('util');
-var randomstring     = require('randomstring');
+var random_id        = require('./lib/random_id');
 var reconnect        = require('reconnect-net');
+var url              = require('url');
+var _                = require('lodash');
+var lps              = require('length-prefixed-stream');
 var through2         = require('through2');
 
-var RequestMessage   = require('./lib/protocol').Request;
-var ResponseMessage  = require('./lib/protocol').Response;
-var ErrorResponse    = require('./lib/protocol').ErrorResponse;
+var DEFAULT_PORT = 9231;
+var DEFAULT_HOST = 'localhost';
 
-var lps = require('length-prefixed-stream');
-var cb = require('cb');
+var PbRequestMessage   = require('./messages/protocol_buffers').Request;
+var PbResponseMessage  = require('./messages/protocol_buffers').Response;
 
-var defaults = {
-  port:    9231,
-  host:    'localhost',
-  timeout: 1000
-};
+var AvroResponse = require('./messages/avro')['Response/Index'];
+var AvroRequest = require('./messages/avro')['Request/Index'];
+
+//This client is deprecate use:
+//    npm install limitd-client --save
 
 function LimitdClient (options, done) {
   options = options || {};
-
   EventEmitter.call(this);
-
   if (typeof options === 'string') {
     options = _.pick(url.parse(options), ['port', 'hostname']);
-    options.port = typeof options.port !== 'undefined' ? parseInt(options.port, 10) : undefined;
+    options.port = parseInt(options.port || DEFAULT_PORT, 10);
+  } else {
+    options.port = options.port || DEFAULT_PORT;
+    options.host = options.host || DEFAULT_HOST;
   }
-  this.pending_requests = {};
-  this._options = _.extend({}, defaults, options);
+  options.protocol = options.protocol || 'protocol-buffers';
+  this._options = options;
   this.connect(done);
 }
 
 util.inherits(LimitdClient, EventEmitter);
+
+LimitdClient.prototype._responseDecoder = function () {
+  var protocol = this._options.protocol;
+  return through2.obj(function (chunk, enc, callback) {
+    var decoded;
+    try {
+      decoded = protocol === 'protocol-buffers' ?
+                  PbResponseMessage.decode(chunk) :
+                  AvroResponse.fromBuffer(chunk);
+    } catch(err) {
+      return callback(err);
+    }
+
+    callback(null, decoded);
+  });
+};
+
+LimitdClient.prototype._requestEncoder = function () {
+  var protocol = this._options.protocol;
+  return through2.obj(function (request, enc, callback) {
+    var buffer;
+    if (protocol === 'protocol-buffers') {
+      buffer = new PbRequestMessage(request).encode().toBuffer();
+    } else {
+      buffer = AvroRequest.toBuffer(request);
+    }
+    callback(null, buffer);
+  });
+};
 
 LimitdClient.prototype.connect = function (done) {
   var options = this._options;
@@ -42,38 +72,27 @@ LimitdClient.prototype.connect = function (done) {
   this.socket = reconnect(function (stream) {
     stream
       .pipe(lps.decode())
-      .pipe(through2.obj(function (chunk, enc, callback) {
-        var decoded;
-        try {
-          decoded = ResponseMessage.decode(chunk);
-        } catch(err) {
-          return callback(err);
-        }
-        callback(null, decoded);
-      }))
+      .pipe(client._responseDecoder())
       .on('data', function (response) {
-        var response_handler = client.pending_requests[response.request_id];
-        if (response_handler) {
-          response_handler(response);
-        }
+        client.emit('response', response);
+        client.emit('response_' + response.request_id, response);
       });
 
-    client.stream = stream;
+
+    var encoder = client._requestEncoder();
+
+    encoder
+      .pipe(require('./lib/lps_encode')())
+      .pipe(stream);
+
+    client.stream = encoder;
 
     client.emit('ready');
-
-    stream.on('error', function (err) {
-      client.emit('error', err);
-    });
-
   }).once('connect', function () {
-    process.nextTick(function () {
-      client.emit('connect');
-
-      if (done) {
-        done();
-      }
-    });
+    client.emit('connect');
+    if (done) {
+      done();
+    }
   }).on('close', function (has_error) {
     client.emit('close', has_error);
   }).on('error', function (err) {
@@ -84,71 +103,84 @@ LimitdClient.prototype.connect = function (done) {
 LimitdClient.prototype.disconnect = function () {
   this.socket.disconnect();
 };
-
-LimitdClient.prototype._request = function (request, type, _callback) {
-  var callback = _callback;
-  var options = this._options;
+LimitdClient.prototype._request = function (request, type, done) {
   var client = this;
-
-  if (_callback && request.method !== RequestMessage.Method.WAIT) {
-    callback = cb(function (err, result) {
-      if (err instanceof cb.TimeoutError) {
-        return _callback(new Error('request timeout'));
-      }
-      _callback(err, result);
-    }).timeout(options.timeout);
-  }
 
   if (!this.stream || !this.stream.writable) {
     var err = new Error('The socket is closed.');
-    if (callback) {
+    if (done) {
       return process.nextTick(function () {
-        callback(err);
+        done(err);
       });
     } else {
       throw err;
     }
   }
 
-  this.stream.write(request.encodeDelimited().toBuffer());
+  this.stream.write(request);
 
-  if (!callback) return;
+  if (!done) return;
 
-  client.pending_requests[request.id] = function (response) {
-    delete client.pending_requests[request.id];
+  this.once('response_' + request.id, function (response) {
+    if (client._options.protocol === 'protocol-buffers') {
+      if (response['.limitd.ErrorResponse.response'] &&
+          response['.limitd.ErrorResponse.response'].type === 'UNKNOWN_BUCKET_TYPE') {
+        return done(new Error(type + ' is not a valid bucket type'));
+      }
 
-    if (response['.limitd.ErrorResponse.response'] &&
-        response['.limitd.ErrorResponse.response'].type === ErrorResponse.Type.UNKNOWN_BUCKET_TYPE) {
-      return callback(new Error(type + ' is not a valid bucket type'));
+      done(null, response['.limitd.TakeResponse.response']   ||
+                 response['.limitd.PutResponse.response']    ||
+                 response['.limitd.StatusResponse.response'] ||
+                 response['.limitd.PongResponse.response']);
+    } else {
+      if (response.body &&
+          response.body['limitd.ErrorBody'] &&
+          response.body['limitd.ErrorBody'].code === 'UNKNOWN_BUCKET_TYPE') {
+        return done(new Error(type + ' is not a valid bucket type'));
+      }
+
+      var body = _.values(response.body)[0];
+
+      if (!body) { return done(); }
+
+      var result = _.omit(body, [
+                                  'bucket',
+                                  '$clone',
+                                  '$compare',
+                                  '$getType',
+                                  '$isValid',
+                                  '$toBuffer',
+                                  '$toString'
+                                ]);
+
+      result.items = _.reduce(body.items, function (r, v, k) {
+        r.push(_.extend({ instance: k }, v));
+        return r;
+      }, []);
+
+      if (body.bucket) {
+        _.extend(result, body.bucket);
+      }
+
+      done(null, result);
     }
-    callback(null, response['.limitd.TakeResponse.response'] ||
-                   response['.limitd.PutResponse.response']  ||
-                   response['.limitd.StatusResponse.response'] );
-  };
+  });
 };
 
 LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
-  if (typeof count === 'undefined' && typeof done === 'undefined') {
-    done = null;
-    count = 1;
-  } else if (typeof count === 'function') {
+  if (typeof count === 'function' || typeof done === 'undefined') {
     done = count;
     count = 1;
   }
 
-  var request = new RequestMessage({
-    'id':     randomstring.generate(7),
+  var request = {
+    'id':     random_id(7),
     'type':   type,
     'key':    key,
-    'method': RequestMessage.Method[method],
-  });
-
-  if (count === 'all') {
-    request.set('all', true);
-  } else {
-    request.set('count', count);
-  }
-
+    'method': method,
+    'all':    count === 'all' ? true : undefined,
+    'count':  count !== 'all' ? count : undefined
+  };
   return this._request(request, type, done);
 };
 
@@ -162,48 +194,44 @@ LimitdClient.prototype.wait = function (type, key, count, done) {
 
 LimitdClient.prototype.reset =
 LimitdClient.prototype.put = function (type, key, count, done) {
-  if (typeof count === 'undefined' && typeof done === 'undefined') {
-    done = null;
-    count = 'all';
-  } else if (typeof count === 'function') {
+  if (typeof count === 'function') {
     done = count;
     count = 'all';
   }
 
-  var request = new RequestMessage({
-    'id':     randomstring.generate(7),
+  var request = {
+    'id':     random_id(7),
     'type':   type,
     'key':    key,
-    'method': RequestMessage.Method.PUT,
-  });
-
-  if (count === 'all') {
-    request.set('all', true);
-  } else {
-    request.set('count', count);
-  }
+    'method': 'PUT',
+    'all':    count === 'all',
+    'count':  count !== 'all' ? count : undefined
+  };
 
   return this._request(request, type, done);
 };
 
 LimitdClient.prototype.status = function (type, key, done) {
-  var request = new RequestMessage({
-    'id':     randomstring.generate(7),
+  var request = {
+    'id':     random_id(7),
     'type':   type,
     'key':    key,
-    'method': RequestMessage.Method.STATUS,
-  });
+    'method': 'STATUS',
+  };
 
   return this._request(request, type, done);
 };
 
 LimitdClient.prototype.ping = function (done) {
-  var request = new RequestMessage({
-    'id':     randomstring.generate(7),
-    'type':   '',
-    'key':    '',
-    'method': RequestMessage.Method.PING,
-  });
+  var request = {
+    'id':     random_id(7),
+    'method': 'PING',
+  };
+
+  if (this._options.protocol === 'protocol-buffers') {
+    request.type = '';
+    request.key = '';
+  }
 
   return this._request(request, '', done);
 };
