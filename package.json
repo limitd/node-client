@@ -16,7 +16,7 @@
     "protobufjs": "~4.0.0-b2",
     "randomstring": "~1.0.5",
     "reconnect-net": "0.0.0",
-    "tcp-client-failover": "^1.0.1",
+    "tcp-client-failover": "^1.0.2",
     "through2": "~2.0.0"
   },
   "devDependencies": {
