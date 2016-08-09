@@ -34,14 +34,19 @@ function LimitdPool (options, done) {
         clients.push(client);
         done();
       });
-    }, done);
+    }, function() {
+      pool.emit('ready');
+      done();
+    });
 }
 
 util.inherits(LimitdPool, EventEmitter);
 
 LimitdPool.prototype._getClient = function () {
   if (this._clients.length === 0) {
-    return;
+    // if we have no suitable client, return an empty
+    // one so call can still go through
+    return new LimitdClient();
   }
 
   this._current_client++;
@@ -55,9 +60,10 @@ LimitdPool.prototype._getClient = function () {
 
 Object.keys(LimitdClient.prototype).forEach(function (method) {
   LimitdPool.prototype[method] = function () {
-   var client = this._getClient();
-   client[method].apply(client, arguments);
+    var client = this._getClient();
+    client[method].apply(client, arguments);
   };
 });
 
 module.exports = LimitdPool;
+
