@@ -7,7 +7,7 @@ var Response = protocol.Response;
 var TakeResponse = protocol.TakeResponse;
 var ErrorResponse = protocol.ErrorResponse;
 
-describe('limitd client', function () {
+describe('limitd client (standard)', function () {
   var server, client;
 
   before(function (done) {
@@ -115,7 +115,7 @@ describe('limitd client', function () {
       reply(response);
     });
 
-    client.take('ip', '191.12.23.32', 1, function (err, response) {
+    client.take('ip', '191.12.23.32', 1, function (err) {
       assert.ok(err);
       assert.equal(err.message, 'ip is not a valid bucket type');
       done();
@@ -130,10 +130,9 @@ describe('limitd client', function () {
 
     client.take('ip', '191.timeout.23.32', 1, function (err){
       assert.ok(err);
-      assert.equal(err.message, 'request timeout');
+      assert.match(err.message, /timeout/);
       done();
     });
   });
-
 
 });

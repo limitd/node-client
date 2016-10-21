@@ -1,11 +1,23 @@
-var net  = require('net');
-var util = require('util');
-var lps = require('length-prefixed-stream');
-var through2 = require('through2');
+const net          = require('net');
+const util         = require('util');
+const lps          = require('length-prefixed-stream');
+const Transform    = require('stream').Transform;
+const EventEmitter = require('events').EventEmitter;
+const protocol     = require('../lib/protocol');
 
-var EventEmitter = require('events').EventEmitter;
-
-var protocol = require('../lib/protocol');
+function stream_map (mapper) {
+  return Transform({
+    objectMode: true,
+    transform(chunk, enc, callback) {
+      try {
+        this.push(mapper(chunk));
+      } catch(err) {
+        return callback(err);
+      }
+      callback();
+    }
+  });
+}
 
 function MockServer (options) {
   EventEmitter.call(this);
@@ -21,37 +33,21 @@ function MockServer (options) {
 
     socket
     .pipe(lps.decode())
-    .pipe(through2.obj(function (chunk, enc, callback) {
-      var decoded;
-      try {
-        decoded = protocol.Request.decode(chunk);
-      } catch(err) {
-        return callback(err);
+    .pipe(stream_map(chunk => protocol.Request.decode(chunk)))
+    .pipe(Transform({
+      objectMode: true,
+      transform(request, enc, callback) {
+        var stream = this;
+
+        var replier = function (response) {
+          stream.push(response);
+        };
+
+        self.emit('request', request, replier);
+        callback();
       }
-
-      callback(null, decoded);
     }))
-    .pipe(through2.obj(function (request, enc, callback) {
-      var stream = this;
-
-      var replier = function (response) {
-        stream.push(response);
-      };
-
-      self.emit('request', request, replier);
-      callback();
-    }))
-    .pipe(through2.obj(function (response, enc, callback) {
-      var encoded;
-
-      try {
-        encoded = response.encodeDelimited().toBuffer();
-      } catch(err) {
-        return callback(err);
-      }
-
-      callback(null, encoded);
-    }))
+    .pipe(stream_map(response => response.encodeDelimited().toBuffer()))
     .pipe(socket);
   });
 }
@@ -66,12 +62,15 @@ MockServer.prototype.listen = function (done) {
 };
 
 MockServer.prototype.close = function (done) {
-  this._sockets.forEach(function (socket) {
+  this._server.close(() => {
+    if (done) {done();}
+  });
+
+  this._sockets.forEach((socket) => {
     try {
       socket.destroy();
     } catch(err) {}
   });
-  this._server.close(done);
 };
 
 
