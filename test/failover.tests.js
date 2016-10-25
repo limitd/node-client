@@ -1,8 +1,9 @@
 var _         = require('lodash');
 var assert    = require('assert');
 var protocol  = require('../lib/protocol');
-var LimitdClient  = require('../');
-var MockServer    = require('./MockServer');
+var LimitdClient = require('../');
+var MockServer   = require('./MockServer');
+var async        = require('async');
 
 var PORT = 9231;
 
@@ -13,8 +14,13 @@ describe('limitd client failover', function() {
 
   // start three services
   beforeEach((done) => {
-    
-    function createClient() {
+    servers = [];
+    async.forEachSeries(_.range(3), (i, cb) => {
+      var server = new MockServer({ port: PORT + i });
+      server.listen(cb);
+      servers.push(server);
+    }, (err) => {
+      if (err) { return done(err); }
       var config = {
         hosts: _.map(servers, (server, index) => {
           return 'limitd://localhost:' + (PORT + index);
@@ -22,29 +28,17 @@ describe('limitd client failover', function() {
         timeout: 3000
       };
 
-      client = new LimitdClient(config); 
-      client.once('connect', done);
-    }
-
-    var count = 3;
-    servers = _.map(_.range(3), (i) => {
-      var port = PORT + i;
-      var server = new MockServer({ port: port });
-      server.listen(function () {
-        if (++i === count) {
-          createClient();
-        }
+      client = new LimitdClient(config);
+      client.once('connect', () => {
+        setTimeout(done, 100);
       });
-      servers.push(server);
-      return server;
     });
   });
 
   // close all services
-  afterEach(() => {
-    servers.map((server) => {
-      server.close();
-    });
+  afterEach((done) => {
+    client.disconnect();
+    async.forEach(servers, (s, cb) => s.close(cb), done);
   });
 
   it('should connect to first service', function(done) {
@@ -58,7 +52,6 @@ describe('limitd client failover', function() {
       done();
     });
 
-    // invoke service
     client.take('ip', '191.12.23.32', 1);
   });
 
@@ -75,9 +68,11 @@ describe('limitd client failover', function() {
 
     // stop first service
     servers[0].close(function (err) {
-      assert.ok(!err);
+      if (err) { return done(err); }
       // invoke service
-      setTimeout(client.take.bind(client), 1000, 'ip', '191.12.23.32', 1);
+      setTimeout(() => {
+        client.take('ip', '191.12.23.32', 1, err => done(err));
+      }, 1000);
     });
   });
 

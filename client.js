@@ -1,18 +1,17 @@
-var url              = require('url');
-var _                = require('lodash');
-var EventEmitter     = require('events').EventEmitter;
-var util             = require('util');
-var randomstring     = require('randomstring');
-var reconnect        = require('reconnect-net');
-var failover         = require('tcp-client-failover');
-var through2         = require('through2');
+const url              = require('url');
+const _                = require('lodash');
+const EventEmitter     = require('events').EventEmitter;
+const util             = require('util');
+const randomstring     = require('randomstring');
+const reconnect        = require('reconnect-net');
+const failover         = require('tcp-client-failover');
+const Transform        = require('stream').Transform;
 
-var RequestMessage   = require('./lib/protocol').Request;
-var ResponseMessage  = require('./lib/protocol').Response;
-var ErrorResponse    = require('./lib/protocol').ErrorResponse;
-
-var lps = require('length-prefixed-stream');
-var cb = require('cb');
+const RequestMessage   = require('./lib/protocol').Request;
+const ResponseMessage  = require('./lib/protocol').Response;
+const ErrorResponse    = require('./lib/protocol').ErrorResponse;
+const disyuntor        = require('disyuntor');
+const lps              = require('length-prefixed-stream');
 
 var defaults = {
   port:    9231,
@@ -22,8 +21,8 @@ var defaults = {
 function LimitdClient (options, done) {
 
   EventEmitter.call(this);
-  
-  options = options || { hosts: [] };
+
+  this._options = options = options && _.cloneDeep(options) || { hosts: [] };
 
   if (_.isArray(options)) {
     options = {
@@ -33,7 +32,6 @@ function LimitdClient (options, done) {
 
   if (!options.hosts) {
     options = {
-      timeout: options.timeout || undefined,
       hosts: [ options ]
     };
   }
@@ -50,11 +48,21 @@ function LimitdClient (options, done) {
     return host;
   });
 
-  options.timeout = options.timeout || 1000;
-
-  this._options = options;
   this.pending_requests = {};
   this.connect(done);
+
+  if (!options.breaker) {
+    options.breaker = {};
+  }
+
+  options.breaker.timeout = options.breaker.timeout || options.timeout || '1s';
+
+  this._request = disyuntor(this._request.bind(this), _.extend({
+    name: 'limitd.request',
+    monitor: details => {
+      this.emit('breaker_error', details.err);
+    }
+  }, options.breaker || { }));
 }
 
 util.inherits(LimitdClient, EventEmitter);
@@ -117,14 +125,17 @@ LimitdClient.prototype._onNewStream = function (stream) {
 
   stream
   .pipe(lps.decode())
-  .pipe(through2.obj(function (chunk, enc, callback) {
-    var decoded;
-    try {
-      decoded = ResponseMessage.decode(chunk);
-    } catch(err) {
-      return callback(err);
+  .pipe(Transform({
+    objectMode: true,
+    transform(chunk, enc, callback) {
+      try {
+        const decoded = ResponseMessage.decode(chunk);
+        this.push(decoded);
+      } catch(err) {
+        return callback(err);
+      }
+      callback();
     }
-    callback(null, decoded);
   }))
   .on('data', function (response) {
     var response_handler = self.pending_requests[response.request_id];
@@ -134,7 +145,7 @@ LimitdClient.prototype._onNewStream = function (stream) {
   })
   .on('error', function (err) {
     self.emit('error', err);
-  });    
+  });
 
   self.stream = stream;
 
@@ -151,26 +162,13 @@ LimitdClient.prototype.disconnect = function () {
   }
 };
 
-LimitdClient.prototype._request = function (request, type, _callback) {
-  var callback = _callback;
-  var options = this._options;
+LimitdClient.prototype._request = function (request, type, callback) {
   var client = this;
-
-  if (_callback && request.method !== RequestMessage.Method.WAIT) {
-    callback = cb(function (err, result) {
-      if (err instanceof cb.TimeoutError) {
-        return _callback(new Error('request timeout'));
-      }
-      _callback(err, result);
-    }).timeout(options.timeout);
-  }
 
   if (!this.stream || !this.stream.writable) {
     var err = new Error('The socket is closed.');
     if (callback) {
-      return process.nextTick(function () {
-        callback(err);
-      });
+      return setImmediate(callback, err);
     } else {
       throw err;
     }
@@ -195,7 +193,7 @@ LimitdClient.prototype._request = function (request, type, _callback) {
 
 LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
   if (typeof count === 'undefined' && typeof done === 'undefined') {
-    done = null;
+    done = _.noop;
     count = 1;
   } else if (typeof count === 'function') {
     done = count;
@@ -215,7 +213,7 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     request.set('count', count);
   }
 
-  return this._request(request, type, done);
+  return this._request(request, type, done || _.noop);
 };
 
 LimitdClient.prototype.take = function (type, key, count, done) {
@@ -229,7 +227,7 @@ LimitdClient.prototype.wait = function (type, key, count, done) {
 LimitdClient.prototype.reset =
 LimitdClient.prototype.put = function (type, key, count, done) {
   if (typeof count === 'undefined' && typeof done === 'undefined') {
-    done = null;
+    done = _.noop;
     count = 'all';
   } else if (typeof count === 'function') {
     done = count;
