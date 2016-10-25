@@ -22,19 +22,19 @@ function LimitdClient (options, done) {
 
   EventEmitter.call(this);
 
-  this._options = options = options && _.cloneDeep(options) || { hosts: [] };
-
-  if (_.isArray(options)) {
-    options = {
-      hosts: options
-    };
-  }
-
-  if (!options.hosts) {
+  if (typeof options === 'string') {
     options = {
       hosts: [ options ]
     };
+  } else if(Array.isArray(options)) {
+    options = {
+      hosts: options
+    };
+  } else {
+    options = options && _.cloneDeep(options) || { hosts: [] };
   }
+
+  this._options = options;
 
   if (options.hosts.length === 0) {
     options.hosts.push(defaults);
@@ -195,9 +195,15 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
   if (typeof count === 'undefined' && typeof done === 'undefined') {
     done = _.noop;
     count = 1;
-  } else if (typeof count === 'function') {
+  }
+
+  if (typeof count === 'function') {
     done = count;
     count = 1;
+  }
+
+  if (typeof done !== 'function') {
+    done = _.noop;
   }
 
   var request = new RequestMessage({
@@ -213,7 +219,7 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     request.set('count', count);
   }
 
-  return this._request(request, type, done || _.noop);
+  return this._request(request, type, done);
 };
 
 LimitdClient.prototype.take = function (type, key, count, done) {
