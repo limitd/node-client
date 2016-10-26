@@ -63,6 +63,9 @@ function LimitdClient (options, done) {
       this.emit('breaker_error', details.err);
     }
   }, options.breaker || { }));
+
+
+  this.resetCircuitBreaker = () => this._request.reset();
 }
 
 util.inherits(LimitdClient, EventEmitter);
