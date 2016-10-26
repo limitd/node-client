@@ -30,6 +30,10 @@ function LimitdClient (options, done) {
     options = {
       hosts: options
     };
+  } else if(typeof options === 'object' && 'host' in options) {
+    options = {
+      hosts: [ options ]
+    };
   } else {
     options = options && _.cloneDeep(options) || { hosts: [] };
   }
