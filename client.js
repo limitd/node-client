@@ -176,8 +176,6 @@ LimitdClient.prototype._request = function (request, type, callback) {
 
   this.stream.write(request.encodeDelimited().toBuffer());
 
-  if (!callback) return;
-
   client.pending_requests[request.id] = function (response) {
     delete client.pending_requests[request.id];
 
@@ -235,9 +233,15 @@ LimitdClient.prototype.put = function (type, key, count, done) {
   if (typeof count === 'undefined' && typeof done === 'undefined') {
     done = _.noop;
     count = 'all';
-  } else if (typeof count === 'function') {
+  }
+
+  if (typeof count === 'function') {
     done = count;
     count = 'all';
+  }
+
+  if (typeof done === 'undefined') {
+    done = _.noop;
   }
 
   var request = new RequestMessage({
