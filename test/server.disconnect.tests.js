@@ -23,7 +23,7 @@ describe('circuit breaker', function () {
           client.take('ip', '1232.312.error', 1, function (err2) {
             assert.equal(err2.message, 'limitd.request: the circuit-breaker is open');
             assert.equal(breaker_errors.length, 1);
-            assert.equal(breaker_errors[0], err1);
+            assert.equal(breaker_errors[0], err2);
             done();
           });
         });
