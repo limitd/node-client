@@ -31,9 +31,8 @@ function LimitdClient (options, done) {
       hosts: options
     };
   } else if(typeof options === 'object' && 'host' in options) {
-    options = {
-      hosts: [ options ]
-    };
+    const host = options.host;
+    options = _.extend(_.omit(options, 'host'), { hosts: [host] });
   } else {
     options = options && _.cloneDeep(options) || { hosts: [] };
   }
@@ -203,7 +202,9 @@ LimitdClient.prototype._request = function (request, type, callback) {
                  response['.limitd.StatusResponse.response'];
 
 
-    resp.took = Date.now() - start;
+    if (resp) {
+      resp.took = Date.now() - start;
+    }
 
     this.emit('response', resp);
 
