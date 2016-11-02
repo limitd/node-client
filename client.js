@@ -198,14 +198,16 @@ LimitdClient.prototype._request = function (request, type, callback) {
       return callback(new Error(type + ' is not a valid bucket type'));
     }
 
-    this.emit('response', {
-      took: Date.now() - start,
-      request
-    });
+    const resp = response['.limitd.TakeResponse.response'] ||
+                 response['.limitd.PutResponse.response']  ||
+                 response['.limitd.StatusResponse.response'];
 
-    callback(null, response['.limitd.TakeResponse.response'] ||
-                   response['.limitd.PutResponse.response']  ||
-                   response['.limitd.StatusResponse.response'] );
+
+    resp.took = Date.now() - start;
+
+    this.emit('response', resp);
+
+    callback(null, resp);
   };
 };
 
