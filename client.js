@@ -14,8 +14,8 @@ const disyuntor        = require('disyuntor');
 const lps              = require('length-prefixed-stream');
 
 var defaults = {
-  port:    9231,
-  host:    'localhost'
+  port: 9231,
+  host: 'localhost'
 };
 
 function LimitdClient (options, done) {
@@ -78,32 +78,37 @@ LimitdClient.prototype.connect = function (done) {
   var options = this._options;
 
   if (options.hosts.length > 1) {
-    this._connectUsingFailover.bind(this)(done);
+    this._connectUsingFailover(done);
   } else {
-    this._connectUsingReconnect.bind(this)(done);
+    this._connectUsingReconnect(done);
   }
 };
 
 LimitdClient.prototype._connectUsingReconnect = function (done) {
-  var self = this;
-  var hostConfig = this._options.hosts[0];
+  const hostConfig = this._options.hosts[0];
+  const host = hostConfig.address || hostConfig.hostname || hostConfig.host;
+  const port = hostConfig.port;
 
   done = done || _.noop;
 
-  self.socket = reconnect(self._onNewStream.bind(self))
-  .once('connect', function () {
-    setImmediate(function () {
-      self.emit('connect');
-      done();
-    });
-  })
-  .on('close', function (has_error) {
-    self.emit('close', has_error);
-  })
-  .on('error', function (err) {
-    self.emit('error', err);
-  })
-  .connect(hostConfig.port, hostConfig.address || hostConfig.hostname || hostConfig.host);
+  this.socket = reconnect({
+                  initialDelay: 200,
+                  maxDelay: 1000
+                }, stream => {
+                  this._onNewStream(stream);
+                }).once('connect', (connection) => {
+                  connection.setKeepAlive(true, 50);
+                  setImmediate(() => {
+                    this.emit('connect');
+                    done();
+                  });
+                }).on('close', (has_error) => {
+                  this.emit('close', has_error);
+                }).on('error', (err) => {
+                  this.emit('error', err);
+                }).on('reconnect', (n, delay) => {
+                  this.emit('reconnect', n, delay);
+                }).connect(port, host);
 };
 
 LimitdClient.prototype._connectUsingFailover = function (done) {
@@ -170,10 +175,10 @@ LimitdClient.prototype.disconnect = function () {
 };
 
 LimitdClient.prototype._request = function (request, type, callback) {
-  var client = this;
+  const client = this;
 
   if (!this.stream || !this.stream.writable) {
-    var err = new Error('The socket is closed.');
+    const err = new Error('The socket is closed.');
     if (callback) {
       return setImmediate(callback, err);
     } else {
@@ -183,13 +188,21 @@ LimitdClient.prototype._request = function (request, type, callback) {
 
   this.stream.write(request.encodeDelimited().toBuffer());
 
-  client.pending_requests[request.id] = function (response) {
+  const start = Date.now();
+
+  client.pending_requests[request.id] = (response) => {
     delete client.pending_requests[request.id];
 
     if (response['.limitd.ErrorResponse.response'] &&
         response['.limitd.ErrorResponse.response'].type === ErrorResponse.Type.UNKNOWN_BUCKET_TYPE) {
       return callback(new Error(type + ' is not a valid bucket type'));
     }
+
+    this.emit('response', {
+      took: Date.now() - start,
+      request
+    });
+
     callback(null, response['.limitd.TakeResponse.response'] ||
                    response['.limitd.PutResponse.response']  ||
                    response['.limitd.StatusResponse.response'] );
