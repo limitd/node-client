@@ -47,7 +47,7 @@ function MockServer (options) {
         callback();
       }
     }))
-    .pipe(stream_map(response => response.encodeDelimited().toBuffer()))
+    .pipe(stream_map(response => protocol.Response.encodeDelimited(response).finish()))
     .pipe(socket);
   });
 }
