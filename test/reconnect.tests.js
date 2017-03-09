@@ -7,18 +7,17 @@ var TakeResponse = protocol.TakeResponse;
 
 
 function mock_response (request, reply) {
-  var response = new Response({
-    request_id: request.id
-  });
-
-  var takeResponse = new TakeResponse({
+  var takeResponse = TakeResponse.create({
     conformant: true,
     remaining:  10,
     reset:      11111111,
     limit:      100
   });
 
-  response.set('.limitd.TakeResponse.response', takeResponse);
+  var response = Response.create({
+    request_id: request.id,
+    '.limitd.TakeResponse.response': takeResponse
+  });
 
   reply(response);
 }

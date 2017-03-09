@@ -185,7 +185,7 @@ LimitdClient.prototype._request = function (request, type, callback) {
     }
   }
 
-  this.stream.write(request.encodeDelimited().toBuffer());
+  this.stream.write(RequestMessage.encodeDelimited(request).finish());
 
   const start = Date.now();
 
@@ -227,18 +227,14 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     done = _.noop;
   }
 
-  var request = new RequestMessage({
+  var request = RequestMessage.create({
     'id':     randomstring.generate(7),
     'type':   type,
     'key':    key,
     'method': RequestMessage.Method[method],
+    'all':    count === 'all' || null,
+    'count':  count !== 'all' ? count : null
   });
-
-  if (count === 'all') {
-    request.set('all', true);
-  } else {
-    request.set('count', count);
-  }
 
   return this._request(request, type, done);
 };
@@ -267,24 +263,20 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     done = _.noop;
   }
 
-  var request = new RequestMessage({
+  var request = RequestMessage.create({
     'id':     randomstring.generate(7),
     'type':   type,
     'key':    key,
     'method': RequestMessage.Method.PUT,
+    'all':    count === 'all' ? true : null,
+    'count':  count !== 'all' ? count : null
   });
-
-  if (count === 'all') {
-    request.set('all', true);
-  } else {
-    request.set('count', count);
-  }
 
   return this._request(request, type, done);
 };
 
 LimitdClient.prototype.status = function (type, key, done) {
-  var request = new RequestMessage({
+  var request = RequestMessage.create({
     'id':     randomstring.generate(7),
     'type':   type,
     'key':    key,

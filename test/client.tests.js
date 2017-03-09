@@ -72,18 +72,18 @@ describe('limitd client (standard)', function () {
   it('should be able to parse the response of TAKE', function (done) {
 
     server.once('request', function (request, reply) {
-      var response = new Response({
-        request_id: request.id,
-      });
-
-      var takeResponse = new TakeResponse({
+      var takeResponse = TakeResponse.create({
         conformant: true,
         remaining:  10,
         reset:      11111111,
         limit:      100
       });
 
-      response.set('.limitd.TakeResponse.response', takeResponse);
+      var response = Response.create({
+        request_id: request.id,
+        '.limitd.TakeResponse.response': takeResponse
+      });
+
 
       reply(response);
     });
@@ -102,15 +102,14 @@ describe('limitd client (standard)', function () {
   it('should be able to parse the Error Responses', function (done) {
 
     server.once('request', function (request, reply) {
-      var response = new Response({
-        request_id: request.id
-      });
-
-      var errorResponse = new ErrorResponse({
+      var errorResponse = ErrorResponse.create({
         type: ErrorResponse.Type.UNKNOWN_BUCKET_TYPE
       });
 
-      response.set('.limitd.ErrorResponse.response', errorResponse);
+      var response = Response.create({
+        request_id: request.id,
+        '.limitd.ErrorResponse.response': errorResponse
+      });
 
       reply(response);
     });

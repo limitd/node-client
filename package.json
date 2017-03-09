@@ -12,7 +12,7 @@
     "disyuntor": "~1.2.1",
     "length-prefixed-stream": "~1.4.0",
     "lodash": "~3.7.0",
-    "protobufjs": "auth0/protobuf.js#4.0.0-auth0",
+    "protobufjs": "^6.6.5",
     "randomstring": "~1.0.5",
     "reconnect-net": "0.0.0",
     "tcp-client-failover": "^1.0.2"
