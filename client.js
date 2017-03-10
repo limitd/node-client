@@ -287,7 +287,7 @@ LimitdClient.prototype.status = function (type, key, done) {
 };
 
 LimitdClient.prototype.ping = function (done) {
-  var request = new RequestMessage({
+  var request = RequestMessage.create({
     'id':     randomstring.generate(7),
     'type':   '',
     'key':    '',

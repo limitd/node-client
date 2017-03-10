@@ -1,11 +1,12 @@
-var LimitdClient = require('../');
-var MockServer = require('./MockServer');
-var assert = require('chai').assert;
-var protocol = require('../lib/protocol');
+const LimitdClient = require('../');
+const MockServer = require('./MockServer');
+const assert = require('chai').assert;
+const protocol = require('../lib/protocol');
 
-var Response = protocol.Response;
-var TakeResponse = protocol.TakeResponse;
-var ErrorResponse = protocol.ErrorResponse;
+const Response = protocol.Response;
+const TakeResponse = protocol.TakeResponse;
+const ErrorResponse = protocol.ErrorResponse;
+const _ = require('lodash');
 
 describe('limitd client (standard)', function () {
   var server, client;
@@ -41,6 +42,15 @@ describe('limitd client (standard)', function () {
     });
   });
 
+  it('should be able to send PING requests', function (done) {
+    server.once('request', function (request) {
+      assert.isString(request.id);
+      assert.equal(request.method, protocol.Request.Method.PING);
+      done();
+    });
+
+    client.ping(_.noop);
+  });
 
   it('should be able to send PUT requests', function (done) {
     server.once('request', function (request) {
