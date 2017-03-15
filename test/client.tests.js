@@ -1,11 +1,7 @@
 const LimitdClient = require('../');
 const MockServer = require('./MockServer');
 const assert = require('chai').assert;
-const protocol = require('../lib/protocol');
 
-const Response = protocol.Response;
-const TakeResponse = protocol.TakeResponse;
-const ErrorResponse = protocol.ErrorResponse;
 const _ = require('lodash');
 
 describe('limitd client (standard)', function () {
@@ -31,7 +27,7 @@ describe('limitd client (standard)', function () {
     it('should be able to send ' + method.toUpperCase() + ' requests', function (done) {
       server.once('request', function (request) {
         assert.isString(request.id);
-        assert.equal(request.method, protocol.Request.Method[method.toUpperCase()]);
+        assert.equal(request.method, method.toUpperCase());
         assert.equal(request.type, 'ip');
         assert.equal(request.count, 1);
         assert.equal(request.all, false);
@@ -45,7 +41,7 @@ describe('limitd client (standard)', function () {
   it('should be able to send PING requests', function (done) {
     server.once('request', function (request) {
       assert.isString(request.id);
-      assert.equal(request.method, protocol.Request.Method.PING);
+      assert.equal(request.method, 'PING');
       done();
     });
 
@@ -56,7 +52,7 @@ describe('limitd client (standard)', function () {
     server.once('request', function (request) {
       assert.isString(request.id);
 
-      assert.equal(request.method, protocol.Request.Method.PUT);
+      assert.equal(request.method, 'PUT');
       assert.equal(request.type, 'ip');
       assert.equal(request.all, true);
 
@@ -70,7 +66,7 @@ describe('limitd client (standard)', function () {
     server.once('request', function (request) {
       assert.isString(request.id);
 
-      assert.equal(request.method, protocol.Request.Method.STATUS);
+      assert.equal(request.method, 'STATUS');
       assert.equal(request.type, 'ip');
 
       done();
@@ -82,18 +78,15 @@ describe('limitd client (standard)', function () {
   it('should be able to parse the response of TAKE', function (done) {
 
     server.once('request', function (request, reply) {
-      var takeResponse = TakeResponse.create({
-        conformant: true,
-        remaining:  10,
-        reset:      11111111,
-        limit:      100
-      });
-
-      var response = Response.create({
+      const response = {
         request_id: request.id,
-        '.limitd.TakeResponse.response': takeResponse
-      });
-
+        'take': {
+          conformant: true,
+          remaining:  10,
+          reset:      11111111,
+          limit:      100
+        }
+      };
 
       reply(response);
     });
@@ -112,14 +105,12 @@ describe('limitd client (standard)', function () {
   it('should be able to parse the Error Responses', function (done) {
 
     server.once('request', function (request, reply) {
-      var errorResponse = ErrorResponse.create({
-        type: ErrorResponse.Type.UNKNOWN_BUCKET_TYPE
-      });
-
-      var response = Response.create({
+      const response = {
         request_id: request.id,
-        '.limitd.ErrorResponse.response': errorResponse
-      });
+        'error': {
+          type: 'UNKNOWN_BUCKET_TYPE'
+        }
+      };
 
       reply(response);
     });

@@ -10,12 +10,13 @@
   "license": "MIT",
   "dependencies": {
     "disyuntor": "~1.2.1",
+    "length-prefixed-message": "^3.0.3",
     "length-prefixed-stream": "~1.4.0",
+    "limitd-protocol": "limitd/protocol#v1.6.2",
     "lodash": "~3.7.0",
-    "protobufjs": "^6.6.5",
-    "randomstring": "~1.0.5",
     "reconnect-net": "0.0.0",
-    "tcp-client-failover": "^1.0.2"
+    "tcp-client-failover": "^1.0.2",
+    "uuid": "^3.0.1"
   },
   "devDependencies": {
     "async": "~2.1.2",

@@ -1,17 +1,17 @@
-const url              = require('url');
-const _                = require('lodash');
-const EventEmitter     = require('events').EventEmitter;
-const util             = require('util');
-const randomstring     = require('randomstring');
-const reconnect        = require('reconnect-net');
-const failover         = require('tcp-client-failover');
-const Transform        = require('stream').Transform;
+const url          = require('url');
+const _            = require('lodash');
+const EventEmitter = require('events').EventEmitter;
+const util         = require('util');
+const reconnect    = require('reconnect-net');
+const failover     = require('tcp-client-failover');
+const Transform    = require('stream').Transform;
+const Protocol     = require('limitd-protocol');
+const uuid         = require('uuid/v1');
 
-const RequestMessage   = require('./lib/protocol').Request;
-const ResponseMessage  = require('./lib/protocol').Response;
-const ErrorResponse    = require('./lib/protocol').ErrorResponse;
-const disyuntor        = require('disyuntor');
-const lps              = require('length-prefixed-stream');
+const disyuntor    = require('disyuntor');
+const lps = require('length-prefixed-stream');
+const lpm = require('length-prefixed-message');
+
 
 var defaults = {
   port: 9231,
@@ -140,7 +140,7 @@ LimitdClient.prototype._onNewStream = function (stream) {
     objectMode: true,
     transform(chunk, enc, callback) {
       try {
-        const decoded = ResponseMessage.decode(chunk);
+        const decoded = Protocol.Response.decode(chunk);
         this.push(decoded);
       } catch(err) {
         return callback(err);
@@ -185,22 +185,19 @@ LimitdClient.prototype._request = function (request, type, callback) {
     }
   }
 
-  this.stream.write(RequestMessage.encodeDelimited(request).finish());
+  lpm.write(this.stream, Protocol.Request.encode(request));
 
   const start = Date.now();
 
   client.pending_requests[request.id] = (response) => {
     delete client.pending_requests[request.id];
 
-    if (response['.limitd.ErrorResponse.response'] &&
-        response['.limitd.ErrorResponse.response'].type === ErrorResponse.Type.UNKNOWN_BUCKET_TYPE) {
+    if (response.error &&
+        response.error.type === 'UNKNOWN_BUCKET_TYPE') {
       return callback(new Error(type + ' is not a valid bucket type'));
     }
 
-    const resp = response['.limitd.TakeResponse.response'] ||
-                 response['.limitd.PutResponse.response']  ||
-                 response['.limitd.StatusResponse.response'];
-
+    const resp = response[response.body];
 
     if (resp) {
       resp.took = Date.now() - start;
@@ -227,14 +224,14 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     done = _.noop;
   }
 
-  var request = RequestMessage.create({
-    'id':     randomstring.generate(7),
+  const request = {
+    'id':     uuid(),
     'type':   type,
     'key':    key,
-    'method': RequestMessage.Method[method],
+    'method': method,
     'all':    count === 'all' || null,
     'count':  count !== 'all' ? count : null
-  });
+  };
 
   return this._request(request, type, done);
 };
@@ -263,36 +260,36 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     done = _.noop;
   }
 
-  var request = RequestMessage.create({
-    'id':     randomstring.generate(7),
+  const request = {
+    'id':     uuid(),
     'type':   type,
     'key':    key,
-    'method': RequestMessage.Method.PUT,
+    'method': 'PUT',
     'all':    count === 'all' ? true : null,
     'count':  count !== 'all' ? count : null
-  });
+  };
 
   return this._request(request, type, done);
 };
 
 LimitdClient.prototype.status = function (type, key, done) {
-  var request = RequestMessage.create({
-    'id':     randomstring.generate(7),
+  var request = {
+    'id':     uuid(),
     'type':   type,
     'key':    key,
-    'method': RequestMessage.Method.STATUS,
-  });
+    'method': 'STATUS',
+  };
 
   return this._request(request, type, done);
 };
 
 LimitdClient.prototype.ping = function (done) {
-  var request = RequestMessage.create({
-    'id':     randomstring.generate(7),
+  var request = {
+    'id':     uuid(),
     'type':   '',
     'key':    '',
-    'method': RequestMessage.Method.PING,
-  });
+    'method': 'PING',
+  };
 
   return this._request(request, '', done);
 };

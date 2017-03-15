@@ -1,23 +1,18 @@
-var LimitdClient = require('../');
-var MockServer = require('./MockServer');
-var protocol = require('../lib/protocol');
-
-var Response = protocol.Response;
-var TakeResponse = protocol.TakeResponse;
+const LimitdClient = require('../');
+const MockServer = require('./MockServer');
 
 
 function mock_response (request, reply) {
-  var takeResponse = TakeResponse.create({
-    conformant: true,
-    remaining:  10,
-    reset:      11111111,
-    limit:      100
-  });
 
-  var response = Response.create({
+  var response = {
     request_id: request.id,
-    '.limitd.TakeResponse.response': takeResponse
-  });
+    'take': {
+      conformant: true,
+      remaining:  10,
+      reset:      11111111,
+      limit:      100
+    }
+  };
 
   reply(response);
 }

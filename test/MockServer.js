@@ -3,7 +3,7 @@ const util         = require('util');
 const lps          = require('length-prefixed-stream');
 const Transform    = require('stream').Transform;
 const EventEmitter = require('events').EventEmitter;
-const protocol     = require('../lib/protocol');
+const Protocol     = require('limitd-protocol');
 
 function stream_map (mapper) {
   return Transform({
@@ -33,7 +33,7 @@ function MockServer (options) {
 
     socket
     .pipe(lps.decode())
-    .pipe(stream_map(chunk => protocol.Request.decode(chunk)))
+    .pipe(stream_map(chunk => Protocol.Request.decode(chunk)))
     .pipe(Transform({
       objectMode: true,
       transform(request, enc, callback) {
@@ -47,7 +47,8 @@ function MockServer (options) {
         callback();
       }
     }))
-    .pipe(stream_map(response => protocol.Response.encodeDelimited(response).finish()))
+    .pipe(stream_map(response => Protocol.Response.encode(response)))
+    .pipe(lps.encode())
     .pipe(socket);
   });
 }

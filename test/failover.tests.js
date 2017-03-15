@@ -1,9 +1,8 @@
-var _         = require('lodash');
-var assert    = require('assert');
-var protocol  = require('../lib/protocol');
-var LimitdClient = require('../');
-var MockServer   = require('./MockServer');
-var async        = require('async');
+const _         = require('lodash');
+const assert    = require('assert');
+const LimitdClient = require('../');
+const MockServer   = require('./MockServer');
+const async        = require('async');
 
 var PORT = 9231;
 
@@ -45,7 +44,7 @@ describe('limitd client failover', function() {
 
     servers[0].once('request', function (request) {
       assert.equal(typeof request.id, 'string');
-      assert.equal(request.method, protocol.Request.Method.TAKE);
+      assert.equal(request.method, 'TAKE');
       assert.equal(request.type, 'ip');
       assert.equal(request.count, 1);
       assert.equal(request.all, false);
@@ -59,7 +58,7 @@ describe('limitd client failover', function() {
 
     servers[1].once('request', function (request) {
       assert.equal(typeof request.id, 'string');
-      assert.equal(request.method, protocol.Request.Method.TAKE);
+      assert.equal(request.method, 'TAKE');
       assert.equal(request.type, 'ip');
       assert.equal(request.count, 1);
       assert.equal(request.all, false);
@@ -80,7 +79,7 @@ describe('limitd client failover', function() {
 
     servers[0].once('request', function (request) {
       assert.equal(typeof request.id, 'string');
-      assert.equal(request.method, protocol.Request.Method.TAKE);
+      assert.equal(request.method, 'TAKE');
       assert.equal(request.type, 'ip');
       assert.equal(request.count, 1);
       assert.equal(request.all, false);
