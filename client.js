@@ -9,16 +9,20 @@ const Protocol     = require('limitd-protocol');
 const uuid         = require('uuid/v1');
 
 const disyuntor    = require('disyuntor');
+
 const lps = require('length-prefixed-stream');
 const lpm = require('length-prefixed-message');
 
-
-var defaults = {
+const defaults = {
   port: 9231,
   host: 'localhost'
 };
 
 function LimitdClient (options, done) {
+  if (options && options.shard) {
+    const ShardClient  = require('./shard_client');
+    return new ShardClient(options, done);
+  }
 
   EventEmitter.call(this);
 
@@ -79,6 +83,7 @@ LimitdClient.prototype.connect = function (done) {
   if (options.hosts.length > 1) {
     this._connectUsingFailover(done);
   } else {
+    this.host = options.hosts[0];
     this._connectUsingReconnect(done);
   }
 };
@@ -259,14 +264,15 @@ LimitdClient.prototype.put = function (type, key, count, done) {
   if (typeof done === 'undefined') {
     done = _.noop;
   }
+  const reset_all = count === 'all';
 
   const request = {
     'id':     uuid(),
     'type':   type,
     'key':    key,
     'method': 'PUT',
-    'all':    count === 'all' ? true : null,
-    'count':  count !== 'all' ? count : null
+    'all':    reset_all ? true : null,
+    'count':  !reset_all ? count : null
   };
 
   return this._request(request, type, done);
