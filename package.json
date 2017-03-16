@@ -14,14 +14,16 @@
     "length-prefixed-stream": "~1.4.0",
     "limitd-protocol": "limitd/protocol#v1.6.2",
     "lodash": "~3.7.0",
+    "murmurhash3js": "^3.0.1",
     "reconnect-net": "0.0.0",
     "tcp-client-failover": "^1.0.2",
     "uuid": "^3.0.1"
   },
   "devDependencies": {
     "async": "~2.1.2",
-    "chai": "~2.2.0",
-    "mocha": "~2.2.4"
+    "chai": "^3.5.0",
+    "mocha": "~2.2.4",
+    "mockuire": "^1.1.0"
   },
   "homepage": "https://github.com/limitd/node-client",
   "repository": {

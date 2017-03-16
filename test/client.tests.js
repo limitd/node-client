@@ -1,6 +1,7 @@
 const LimitdClient = require('../');
 const MockServer = require('./MockServer');
 const assert = require('chai').assert;
+const ShardClient = require('../shard_client');
 
 const _ = require('lodash');
 
@@ -20,6 +21,11 @@ describe('limitd client (standard)', function () {
   after(function (done) {
     client.disconnect();
     server.close(done);
+  });
+
+  it('should return an instance of ShardClient when initializing with shard', function() {
+    const client  = new LimitdClient({ shard: {hosts: ['limitd://localhost:9231'] }});
+    assert.instanceOf(client, ShardClient);
   });
 
   ['take', 'wait'].forEach(function (method) {
