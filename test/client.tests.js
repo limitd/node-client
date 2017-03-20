@@ -123,7 +123,7 @@ describe('limitd client (standard)', function () {
 
     client.take('ip', '191.12.23.32', 1, function (err) {
       assert.ok(err);
-      assert.equal(err.message, 'ip is not a valid bucket type');
+      assert.equal(err.message, 'Invalid bucket type');
       done();
     });
   });

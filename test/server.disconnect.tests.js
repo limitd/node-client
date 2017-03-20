@@ -4,7 +4,7 @@ const port = 23312;
 const assert = require('chai').assert;
 const async = require('async');
 
-describe.only('circuit breaker', function () {
+describe('circuit breaker', function () {
   const server = new MockServer({ port });
   var client;
 

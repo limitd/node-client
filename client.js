@@ -55,7 +55,8 @@ function LimitdClient (options, done) {
     return host;
   });
 
-  this.pending_requests = {};
+  this.pending_requests = new Map();
+
   this.connect(done);
 
   if (!options.breaker) {
@@ -70,7 +71,6 @@ function LimitdClient (options, done) {
       this.emit('breaker_error', details.err);
     }
   }, options.breaker || { }));
-
 
   this.resetCircuitBreaker = () => this._request.reset();
 }
@@ -154,7 +154,7 @@ LimitdClient.prototype._onNewStream = function (stream) {
     }
   }))
   .on('data', function (response) {
-    var response_handler = self.pending_requests[response.request_id];
+    var response_handler = self.pending_requests.get(response.request_id);
     if (response_handler) {
       response_handler(response);
     }
@@ -178,28 +178,15 @@ LimitdClient.prototype.disconnect = function () {
   }
 };
 
-LimitdClient.prototype._request = function (request, type, callback) {
-  const client = this;
-
-  if (!this.stream || !this.stream.writable) {
-    const err = new Error('The socket is closed.');
-    if (callback) {
-      return setImmediate(callback, err);
-    } else {
-      throw err;
-    }
-  }
-
-  lpm.write(this.stream, Protocol.Request.encode(request));
-
+LimitdClient.prototype._responseHandler = function(requestID, callback) {
   const start = Date.now();
 
-  client.pending_requests[request.id] = (response) => {
-    delete client.pending_requests[request.id];
+  return (response) => {
+    this.pending_requests.delete(requestID);
 
     if (response.error &&
         response.error.type === 'UNKNOWN_BUCKET_TYPE') {
-      return callback(new Error(type + ' is not a valid bucket type'));
+      return callback(new Error('Invalid bucket type'));
     }
 
     const resp = response[response.body];
@@ -212,6 +199,21 @@ LimitdClient.prototype._request = function (request, type, callback) {
 
     callback(null, resp);
   };
+};
+
+LimitdClient.prototype._request = function (request, type, callback) {
+  if (!this.stream || !this.stream.writable) {
+    const err = new Error('The socket is closed.');
+    if (callback) {
+      return setImmediate(callback, err);
+    } else {
+      throw err;
+    }
+  }
+
+  lpm.write(this.stream, Protocol.Request.encode(request));
+
+  this.pending_requests.set(request.id, this._responseHandler(request.id, callback));
 };
 
 LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
@@ -229,13 +231,15 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     done = _.noop;
   }
 
+  const takeAll = count === 'all';
+
   const request = {
     'id':     uuid(),
     'type':   type,
     'key':    key,
     'method': method,
-    'all':    count === 'all' || null,
-    'count':  count !== 'all' ? count : null
+    'all':    takeAll || null,
+    'count':  !takeAll ? count : null
   };
 
   return this._request(request, type, done);
