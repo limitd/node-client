@@ -6,7 +6,6 @@ const reconnect    = require('reconnect-net');
 const failover     = require('tcp-client-failover');
 const Transform    = require('stream').Transform;
 const Protocol     = require('limitd-protocol');
-const uuid         = require('uuid/v1');
 
 const disyuntor    = require('disyuntor');
 
@@ -73,9 +72,21 @@ function LimitdClient (options, done) {
   }, options.breaker || { }));
 
   this.resetCircuitBreaker = () => this._request.reset();
+
+  this.currentId = 0;
 }
 
 util.inherits(LimitdClient, EventEmitter);
+
+LimitdClient.prototype.nextId = function () {
+  //start from 1 and conver to string because the protocol uses strings.
+  if (this.currentId < Number.MAX_SAFE_INTEGER) {
+    this.currentId++;
+  } else {
+    this.currentId = 1;
+  }
+  return (this.currentId).toString();
+};
 
 LimitdClient.prototype.connect = function (done) {
   var options = this._options;
@@ -234,7 +245,7 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
   const takeAll = count === 'all';
 
   const request = {
-    'id':     uuid(),
+    'id':     this.nextId(),
     'type':   type,
     'key':    key,
     'method': method,
@@ -271,7 +282,7 @@ LimitdClient.prototype.put = function (type, key, count, done) {
   const reset_all = count === 'all';
 
   const request = {
-    'id':     uuid(),
+    'id':     this.nextId(),
     'type':   type,
     'key':    key,
     'method': 'PUT',
@@ -284,7 +295,7 @@ LimitdClient.prototype.put = function (type, key, count, done) {
 
 LimitdClient.prototype.status = function (type, key, done) {
   var request = {
-    'id':     uuid(),
+    'id':     this.nextId(),
     'type':   type,
     'key':    key,
     'method': 'STATUS',
@@ -295,7 +306,7 @@ LimitdClient.prototype.status = function (type, key, done) {
 
 LimitdClient.prototype.ping = function (done) {
   var request = {
-    'id':     uuid(),
+    'id':     this.nextId(),
     'type':   '',
     'key':    '',
     'method': 'PING',
