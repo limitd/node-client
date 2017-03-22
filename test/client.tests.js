@@ -61,6 +61,23 @@ describe('limitd client (standard)', function () {
       assert.equal(request.method, 'PUT');
       assert.equal(request.type, 'ip');
       assert.equal(request.all, true);
+      assert.notOk(request.skipResponse);
+
+      done();
+    });
+
+    client.put('ip', '191.12.23.32', _.noop);
+  });
+
+
+  it('should be able to send callback-less PUT requests', function (done) {
+    server.once('request', function (request) {
+      assert.isNumber(request.id);
+
+      assert.equal(request.method, 'PUT');
+      assert.equal(request.type, 'ip');
+      assert.equal(request.all, true);
+      assert.equal(request.skipResponse, true);
 
       done();
     });

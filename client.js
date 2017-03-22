@@ -211,14 +211,19 @@ LimitdClient.prototype._responseHandler = function(requestID, callback) {
   };
 };
 
+LimitdClient.prototype._fireAndForgetRequest = function (request) {
+  if (!this.stream || !this.stream.writable) {
+    const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
+    return this.emit('error', err);
+  }
+
+  lpm.write(this.stream, Protocol.Request.encode(request));
+};
+
 LimitdClient.prototype._request = function (request, type, callback) {
   if (!this.stream || !this.stream.writable) {
-    const err = new Error('The socket is closed.');
-    if (callback) {
-      return setImmediate(callback, err);
-    } else {
-      throw err;
-    }
+    const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
+    return setImmediate(callback, err);
   }
 
   lpm.write(this.stream, Protocol.Request.encode(request));
@@ -266,7 +271,7 @@ LimitdClient.prototype.wait = function (type, key, count, done) {
 LimitdClient.prototype.reset =
 LimitdClient.prototype.put = function (type, key, count, done) {
   if (typeof count === 'undefined' && typeof done === 'undefined') {
-    done = _.noop;
+    done = undefined;
     count = 'all';
   }
 
@@ -275,10 +280,9 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     count = 'all';
   }
 
-  if (typeof done === 'undefined') {
-    done = _.noop;
-  }
   const reset_all = count === 'all';
+
+  const fireAndForget = typeof done !== 'function';
 
   const request = {
     'id':     this.nextId(),
@@ -286,8 +290,13 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     'key':    key,
     'method': 'PUT',
     'all':    reset_all ? true : null,
-    'count':  !reset_all ? count : undefined
+    'count':  !reset_all ? count : undefined,
+    'skipResponse': fireAndForget
   };
+
+  if (fireAndForget) {
+    return this._fireAndForgetRequest(request);
+  }
 
   return this._request(request, type, done);
 };
