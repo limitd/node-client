@@ -32,7 +32,7 @@ describe('limitd client (standard)', function () {
 
     it('should be able to send ' + method.toUpperCase() + ' requests', function (done) {
       server.once('request', function (request) {
-        assert.isString(request.id);
+        assert.isNumber(request.id);
         assert.equal(request.method, method.toUpperCase());
         assert.equal(request.type, 'ip');
         assert.equal(request.count, 1);
@@ -46,7 +46,7 @@ describe('limitd client (standard)', function () {
 
   it('should be able to send PING requests', function (done) {
     server.once('request', function (request) {
-      assert.isString(request.id);
+      assert.isNumber(request.id);
       assert.equal(request.method, 'PING');
       done();
     });
@@ -56,7 +56,7 @@ describe('limitd client (standard)', function () {
 
   it('should be able to send PUT requests', function (done) {
     server.once('request', function (request) {
-      assert.isString(request.id);
+      assert.isNumber(request.id);
 
       assert.equal(request.method, 'PUT');
       assert.equal(request.type, 'ip');
@@ -70,7 +70,7 @@ describe('limitd client (standard)', function () {
 
   it('should be able to send status requests', function (done) {
     server.once('request', function (request) {
-      assert.isString(request.id);
+      assert.isNumber(request.id);
 
       assert.equal(request.method, 'STATUS');
       assert.equal(request.type, 'ip');

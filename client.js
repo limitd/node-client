@@ -89,7 +89,7 @@ LimitdClient.prototype.nextId = function () {
   } else {
     this.currentId = 1;
   }
-  return (this.currentId).toString();
+  return this.currentId;
 };
 
 LimitdClient.prototype.connect = function (done) {
@@ -249,7 +249,7 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     'key':    key,
     'method': method,
     'all':    takeAll || null,
-    'count':  !takeAll ? count : null
+    'count':  !takeAll ? count : undefined
   };
 
   return this._request(request, type, done);
@@ -286,7 +286,7 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     'key':    key,
     'method': 'PUT',
     'all':    reset_all ? true : null,
-    'count':  !reset_all ? count : null
+    'count':  !reset_all ? count : undefined
   };
 
   return this._request(request, type, done);
