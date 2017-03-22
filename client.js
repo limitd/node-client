@@ -48,8 +48,12 @@ function LimitdClient (options, done) {
 
   options.hosts = _.map(options.hosts, (host) => {
     if (typeof host === 'string') {
-      host = _.pick(url.parse(host), ['port', 'hostname']);
-      host.port = typeof host.port !== 'undefined' ? parseInt(host.port, 10) : undefined;
+      if (host.match(/\.socket$/)) {
+        host = { port: host };
+      } else {
+        host = _.pick(url.parse(host), ['port', 'hostname']);
+        host.port = typeof host.port !== 'undefined' ? parseInt(host.port, 10) : undefined;
+      }
     }
     return host;
   });
@@ -113,6 +117,7 @@ LimitdClient.prototype._connectUsingReconnect = function (done) {
                   this._onNewStream(stream);
                 }).once('connect', (connection) => {
                   connection.setKeepAlive(true, 50);
+                  connection.setNoDelay();
                   setImmediate(() => {
                     this.emit('connect');
                     done();
@@ -155,13 +160,7 @@ LimitdClient.prototype._onNewStream = function (stream) {
   .pipe(Transform({
     objectMode: true,
     transform(chunk, enc, callback) {
-      try {
-        const decoded = Protocol.Response.decode(chunk);
-        this.push(decoded);
-      } catch(err) {
-        return callback(err);
-      }
-      callback();
+      callback(null, Protocol.Response.decode(chunk));
     }
   }))
   .on('data', function (response) {
