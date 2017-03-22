@@ -16,8 +16,7 @@
     "lodash": "~3.7.0",
     "murmurhash3js": "^3.0.1",
     "reconnect-net": "0.0.0",
-    "tcp-client-failover": "^1.0.2",
-    "uuid": "^3.0.1"
+    "tcp-client-failover": "^1.0.2"
   },
   "devDependencies": {
     "async": "~2.1.2",
