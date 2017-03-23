@@ -22,7 +22,7 @@ describe('protocol negotiation', function () {
     server.close(done);
   });
 
-  it('should be able to parse the response of TAKE', function (done) {
+  it('should use the protocol from the pong response', function (done) {
 
     server.on('request', function (request, reply) {
       if (request.method === 'PING') {
