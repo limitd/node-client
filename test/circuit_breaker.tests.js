@@ -11,6 +11,7 @@ describe('circuit breaker', function () {
   before(done => server.listen(done));
 
   beforeEach(done => {
+    server.removeAllListeners('request');
     client = new LimitdClient({
       hosts: [`limitd://localhost:${port}`],
       breaker: {
@@ -20,6 +21,32 @@ describe('circuit breaker', function () {
       }
     }, done);
   });
+
+  it('should not trigger on invalid bucket type errors', function (done) {
+    client.once('breaker_error', (err) => {
+      return done(err);
+    });
+
+    server.on('request', function handler(request, reply) {
+      const response = {
+        request_id: request.id,
+        'error': {
+          type: 'UNKNOWN_BUCKET_TYPE'
+        }
+      };
+      reply(response);
+    });
+
+
+    client.take('ip', '1232.312.error', 1, function (err) {
+      assert.equal(err.message, 'Invalid bucket type');
+      client.take('ip', '1232.312.error', 1, function (err) {
+        assert.equal(err.message, 'Invalid bucket type');
+        done();
+      });
+    });
+  });
+
 
   it('should fail fast once we reach the threashold', function (done) {
     const breaker_errors = [];

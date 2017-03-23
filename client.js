@@ -85,7 +85,8 @@ function LimitdClient (options, done) {
     name: 'limitd.request',
     monitor: details => {
       this.emit('breaker_error', details.err);
-    }
+    },
+    trigger: err => err && err.message !== 'Invalid bucket type'
   }, options.breaker || { }));
 
   this.resetCircuitBreaker = () => this._request.reset();
