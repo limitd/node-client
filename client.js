@@ -17,6 +17,11 @@ const defaults = {
   host: 'localhost'
 };
 
+function QueuedRequest(callback) {
+  this.start = new Date();
+  this.callback = callback;
+}
+
 function LimitdClient (options, done) {
   if (options && options.shard) {
     const ShardClient  = require('./shard_client');
@@ -33,11 +38,16 @@ function LimitdClient (options, done) {
     options = {
       hosts: options
     };
-  } else if(typeof options === 'object' && 'host' in options) {
-    const host = options.host;
-    options = _.extend(_.omit(options, 'host'), { hosts: [host] });
+  } else if(typeof options === 'object') {
+    if ('host' in options) {
+      const host = options.host;
+      options = _.extend(_.omit(options, 'host'), { hosts: [host] });
+    } else {
+      //clone the graph but keep stream.
+      options = _.extend(_.cloneDeep(options), { stream: options.stream});
+    }
   } else {
-    options = options && _.cloneDeep(options) || { hosts: [] };
+    options = { hosts: [] };
   }
 
   this._options = options;
@@ -58,7 +68,7 @@ function LimitdClient (options, done) {
     return host;
   });
 
-  this.pending_requests = new Map();
+  this.pending_requests = Object.create(null);
 
   this.connect(done);
 
@@ -68,7 +78,10 @@ function LimitdClient (options, done) {
 
   options.breaker.timeout = options.breaker.timeout || options.timeout || '1s';
 
-  this._request = disyuntor(this._request.bind(this), _.extend({
+  // this._request = this._directRequest;
+  this._request = disyuntor((request, type, callback) => {
+    this._directRequest(request, type, callback);
+  }, _.extend({
     name: 'limitd.request',
     monitor: details => {
       this.emit('breaker_error', details.err);
@@ -102,6 +115,10 @@ LimitdClient.prototype.nextId = function () {
 
 LimitdClient.prototype.connect = function (done) {
   var options = this._options;
+
+  if (options.stream) {
+    return this._onNewStream(options.stream);
+  }
 
   if (options.hosts.length > 1) {
     this._connectUsingFailover(done);
@@ -161,8 +178,6 @@ LimitdClient.prototype._connectUsingFailover = function (done) {
 };
 
 LimitdClient.prototype._onNewStream = function (stream) {
-  var self = this;
-
   stream
   .pipe(lps.decode())
   .pipe(Transform({
@@ -171,19 +186,17 @@ LimitdClient.prototype._onNewStream = function (stream) {
       callback(null, Protocol.Response.decode(chunk));
     }
   }))
-  .on('data', function (response) {
-    var response_handler = self.pending_requests.get(response.request_id);
-    if (response_handler) {
-      response_handler(response);
-    }
+  .on('data', (response) => {
+    const queuedRequest = this.pending_requests[response.request_id];
+    this._responseHandler(response, queuedRequest);
   })
-  .on('error', function (err) {
-    self.emit('error', err);
+  .on('error', (err) => {
+    this.emit('error', err);
   });
 
-  self.stream = stream;
+  this.stream = stream;
 
-  self.emit('ready');
+  this.emit('ready');
 };
 
 LimitdClient.prototype.disconnect = function () {
@@ -196,31 +209,30 @@ LimitdClient.prototype.disconnect = function () {
   }
 };
 
-LimitdClient.prototype._responseHandler = function(requestID, callback) {
-  const start = Date.now();
+LimitdClient.prototype._responseHandler = function(response, queuedRequest) {
+  delete this.pending_requests[response.request_id];
 
-  return (response) => {
-    this.pending_requests.delete(requestID);
+  if (!queuedRequest) { return; }
 
-    if (response.error &&
-        response.error.type === 'UNKNOWN_BUCKET_TYPE') {
-      return callback(new Error('Invalid bucket type'));
-    }
+  if (response.error &&
+      response.error.type === 'UNKNOWN_BUCKET_TYPE') {
+    return queuedRequest.callback(new Error('Invalid bucket type'));
+  }
 
-    const resp = response[response.body];
+  const resp = response[response.body];
+
+
+  if (resp) {
+    resp.took = Date.now() - queuedRequest.start;
 
     if (typeof resp.protocol_version !== 'undefined') {
       this.protocol_version = resp.protocol_version;
     }
+  }
 
-    if (resp) {
-      resp.took = Date.now() - start;
-    }
+  this.emit('response', resp);
 
-    this.emit('response', resp);
-
-    callback(null, resp);
-  };
+  queuedRequest.callback(null, resp);
 };
 
 LimitdClient.prototype._fireAndForgetRequest = function (request) {
@@ -232,7 +244,7 @@ LimitdClient.prototype._fireAndForgetRequest = function (request) {
   lpm.write(this.stream, Protocol.Request.encode(request));
 };
 
-LimitdClient.prototype._request = function (request, type, callback) {
+LimitdClient.prototype._directRequest = function (request, type, callback) {
   if (!this.stream || !this.stream.writable) {
     const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
     return setImmediate(callback, err);
@@ -240,21 +252,17 @@ LimitdClient.prototype._request = function (request, type, callback) {
 
   lpm.write(this.stream, Protocol.Request.encode(request));
 
-  this.pending_requests.set(request.id, this._responseHandler(request.id, callback));
+  this.pending_requests[request.id] = new QueuedRequest(callback);
 };
 
 LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
-  if (typeof count === 'undefined' && typeof done === 'undefined') {
-    done = _.noop;
-    count = 1;
-  }
-
   if (typeof count === 'function') {
     done = count;
     count = 1;
-  }
-
-  if (typeof done !== 'function') {
+  } else if (typeof count === 'undefined' && typeof done === 'undefined') {
+    done = _.noop;
+    count = 1;
+  } else if (typeof done !== 'function') {
     done = _.noop;
   }
 
@@ -265,9 +273,13 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     'type':   type,
     'key':    key,
     'method': method,
-    'all':    takeAll || null,
-    'count':  !takeAll ? count : undefined
   };
+
+  if (takeAll) {
+    request.all = true;
+  } else {
+    request.count = count;
+  }
 
   return this._request(request, type, done);
 };
@@ -282,15 +294,14 @@ LimitdClient.prototype.wait = function (type, key, count, done) {
 
 LimitdClient.prototype.reset =
 LimitdClient.prototype.put = function (type, key, count, done) {
-  if (typeof count === 'undefined' && typeof done === 'undefined') {
+  if (typeof count === 'function') {
+    done = count;
+    count = 'all';
+  } else if (typeof count === 'undefined' && typeof done === 'undefined') {
     done = undefined;
     count = 'all';
   }
 
-  if (typeof count === 'function') {
-    done = count;
-    count = 'all';
-  }
 
   const reset_all = count === 'all';
 
@@ -301,10 +312,14 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     'type':   type,
     'key':    key,
     'method': 'PUT',
-    'all':    reset_all ? true : null,
-    'count':  !reset_all ? count : undefined,
     'skipResponse': fireAndForget
   };
+
+  if (reset_all) {
+    request.all = true;
+  } else {
+    request.count = count;
+  }
 
   if (fireAndForget) {
     return this._fireAndForgetRequest(request);
@@ -314,7 +329,7 @@ LimitdClient.prototype.put = function (type, key, count, done) {
 };
 
 LimitdClient.prototype.status = function (type, key, done) {
-  var request = {
+  const request = {
     'id':     this.nextId(),
     'type':   type,
     'key':    key,
@@ -325,7 +340,7 @@ LimitdClient.prototype.status = function (type, key, done) {
 };
 
 LimitdClient.prototype.ping = function (done) {
-  var request = {
+  const request = {
     'id':     this.nextId(),
     'type':   '',
     'key':    '',

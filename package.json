@@ -9,7 +9,7 @@
   "author": "José F. Romaniello <jfromaniello@gmail.com> (http://joseoncode.com)",
   "license": "MIT",
   "dependencies": {
-    "disyuntor": "^1.2.2",
+    "disyuntor": "^1.2.3",
     "length-prefixed-message": "^3.0.3",
     "length-prefixed-stream": "~1.4.0",
     "limitd-protocol": "limitd/protocol#v2.0.0",
