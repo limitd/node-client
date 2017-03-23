@@ -42,8 +42,8 @@ function LimitdClient (options, done) {
 
   this._options = options;
 
-  if (options.hosts.length === 0) {
-    options.hosts.push(defaults);
+  if (!options.hosts || options.hosts.length === 0) {
+    options.hosts = [ defaults ];
   }
 
   options.hosts = _.map(options.hosts, (host) => {
@@ -78,6 +78,8 @@ function LimitdClient (options, done) {
   this.resetCircuitBreaker = () => this._request.reset();
 
   this.currentId = 0;
+
+  this.protocol_version = options.protocol_version || 1;
 }
 
 util.inherits(LimitdClient, EventEmitter);
@@ -89,6 +91,12 @@ LimitdClient.prototype.nextId = function () {
   } else {
     this.currentId = 1;
   }
+
+  if (this.protocol_version < 2) {
+    //old version support only string ids.
+    return this.currentId + '';
+  }
+
   return this.currentId;
 };
 
@@ -200,6 +208,10 @@ LimitdClient.prototype._responseHandler = function(requestID, callback) {
     }
 
     const resp = response[response.body];
+
+    if (typeof resp.protocol_version !== 'undefined') {
+      this.protocol_version = resp.protocol_version;
+    }
 
     if (resp) {
       resp.took = Date.now() - start;

@@ -43,7 +43,6 @@ describe('limitd client failover', function() {
   it('should connect to first service', function(done) {
 
     servers[0].once('request', function (request) {
-      assert.equal(typeof request.id, 'number');
       assert.equal(request.method, 'TAKE');
       assert.equal(request.type, 'ip');
       assert.equal(request.count, 1);
@@ -57,7 +56,6 @@ describe('limitd client failover', function() {
   it('should connect to second service when first is down', function(done) {
 
     servers[1].once('request', function (request) {
-      assert.equal(typeof request.id, 'number');
       assert.equal(request.method, 'TAKE');
       assert.equal(request.type, 'ip');
       assert.equal(request.count, 1);
@@ -78,7 +76,6 @@ describe('limitd client failover', function() {
   it('should connect to first service after it is back', function(done) {
 
     servers[0].once('request', function (request) {
-      assert.equal(typeof request.id, 'number');
       assert.equal(request.method, 'TAKE');
       assert.equal(request.type, 'ip');
       assert.equal(request.count, 1);

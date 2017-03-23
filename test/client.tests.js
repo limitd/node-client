@@ -14,7 +14,7 @@ describe('limitd client (standard)', function () {
   });
 
   before(function (done) {
-    client = new LimitdClient();
+    client = new LimitdClient({ protocol_version: 2 });
     client.once('connect', done);
   });
 
