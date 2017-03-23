@@ -79,8 +79,8 @@ function LimitdClient (options, done) {
   options.breaker.timeout = options.breaker.timeout || options.timeout || '1s';
 
   // this._request = this._directRequest;
-  this._request = disyuntor((request, type, callback) => {
-    this._directRequest(request, type, callback);
+  this._request = disyuntor((request, callback) => {
+    this._directRequest(request, callback);
   }, _.extend({
     name: 'limitd.request',
     monitor: details => {
@@ -244,7 +244,7 @@ LimitdClient.prototype._fireAndForgetRequest = function (request) {
   lpm.write(this.stream, Protocol.Request.encode(request));
 };
 
-LimitdClient.prototype._directRequest = function (request, type, callback) {
+LimitdClient.prototype._directRequest = function (request, callback) {
   if (!this.stream || !this.stream.writable) {
     const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
     return setImmediate(callback, err);
@@ -281,7 +281,7 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     request.count = count;
   }
 
-  return this._request(request, type, done);
+  return this._request(request, done);
 };
 
 LimitdClient.prototype.take = function (type, key, count, done) {
@@ -325,7 +325,7 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     return this._fireAndForgetRequest(request);
   }
 
-  return this._request(request, type, done);
+  return this._request(request, done);
 };
 
 LimitdClient.prototype.status = function (type, key, done) {
@@ -336,7 +336,7 @@ LimitdClient.prototype.status = function (type, key, done) {
     'method': 'STATUS',
   };
 
-  return this._request(request, type, done);
+  return this._request(request, done);
 };
 
 LimitdClient.prototype.ping = function (done) {
@@ -347,7 +347,7 @@ LimitdClient.prototype.ping = function (done) {
     'method': 'PING',
   };
 
-  return this._request(request, '', done);
+  return this._request(request, done);
 };
 
 module.exports = LimitdClient;
