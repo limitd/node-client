@@ -98,6 +98,19 @@ describe('limitd client (standard)', function () {
     client.status('ip', '191.12.23.32', function () {});
   });
 
+  it('should send type "" if undefined', function (done) {
+    server.once('request', function (request) {
+      assert.isNumber(request.id);
+      assert.equal(request.method, 'STATUS');
+      assert.equal(request.type, 'ip');
+      assert.equal(request.key, '');
+
+      done();
+    });
+
+    client.status('ip', undefined, function () {});
+  });
+
   it('should be able to parse the response of TAKE', function (done) {
 
     server.once('request', function (request, reply) {

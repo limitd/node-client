@@ -269,6 +269,10 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
 
   const takeAll = count === 'all';
 
+  if (typeof key !== 'string') {
+    key = '';
+  }
+
   const request = {
     'id':     this.nextId(),
     'type':   type,
@@ -308,6 +312,10 @@ LimitdClient.prototype.put = function (type, key, count, done) {
 
   const fireAndForget = typeof done !== 'function';
 
+  if (typeof key !== 'string') {
+    key = '';
+  }
+
   const request = {
     'id':     this.nextId(),
     'type':   type,
@@ -330,6 +338,10 @@ LimitdClient.prototype.put = function (type, key, count, done) {
 };
 
 LimitdClient.prototype.status = function (type, key, done) {
+  if (typeof key !== 'string') {
+    key = '';
+  }
+
   const request = {
     'id':     this.nextId(),
     'type':   type,
