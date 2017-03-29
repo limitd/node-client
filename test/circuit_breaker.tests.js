@@ -51,7 +51,9 @@ describe('circuit breaker', function () {
   it('should fail fast once we reach the threashold', function (done) {
     const breaker_errors = [];
 
-    client.once('breaker_error', (err) => breaker_errors.push(err));
+    client.once('trip', (err, failures, cooldown) => {
+      breaker_errors.push({ err, failures, cooldown });
+    });
 
     client.take('ip', '1232.312.error', 1, function (err1) {
       assert.equal(err1.message, 'limitd.request: specified timeout of 100ms was reached');
@@ -60,7 +62,8 @@ describe('circuit breaker', function () {
       client.take('ip', '1232.312.error', 1, function (err2) {
         assert.equal(err2.message, 'limitd.request: the circuit-breaker is open');
         assert.equal(breaker_errors.length, 1);
-        assert.equal(breaker_errors[0], err2);
+        assert.equal(breaker_errors[0].err, err1);
+
         assert.closeTo(Date.now() - startTime, 0, 10);
         done();
       });
@@ -68,10 +71,6 @@ describe('circuit breaker', function () {
   });
 
   it('should only allow one request on half-open state', function (done) {
-    const breaker_errors = [];
-
-    client.once('breaker_error', (err) => breaker_errors.push(err));
-
     client.take('ip', '1232.312.error', 1, (err1) => {
       assert.equal(err1.message, 'limitd.request: specified timeout of 100ms was reached');
 

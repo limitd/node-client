@@ -83,8 +83,8 @@ function LimitdClient (options, done) {
     this._directRequest(request, callback);
   }, _.extend({
     name: 'limitd.request',
-    monitor: details => {
-      this.emit('breaker_error', details.err);
+    onTrip: (err, failures, cooldown) => {
+      this.emit('trip', err, failures, cooldown);
     },
     trigger: err => err && err.message !== 'Invalid bucket type'
   }, options.breaker || { }));
