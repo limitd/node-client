@@ -23,6 +23,11 @@ describe('limitd client (standard)', function () {
     server.close(done);
   });
 
+  it('should not require the default port on the url', function() {
+    const client = new LimitdClient('limitd://localhost');
+    assert.equal(client._options.hosts[0].port, 9231);
+  });
+
   it('should return an instance of ShardClient when initializing with shard', function() {
     const client  = new LimitdClient({ shard: {hosts: ['limitd://localhost:9231'] }});
     assert.instanceOf(client, ShardClient);

@@ -62,7 +62,7 @@ function LimitdClient (options, done) {
         host = { port: host };
       } else {
         host = _.pick(url.parse(host), ['port', 'hostname']);
-        host.port = typeof host.port !== 'undefined' ? parseInt(host.port, 10) : undefined;
+        host.port = host.port ? parseInt(host.port, 10) : defaults.port;
       }
     }
     return host;
