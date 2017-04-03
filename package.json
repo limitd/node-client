@@ -12,7 +12,7 @@
     "disyuntor": "^2.0.0",
     "length-prefixed-message": "^3.0.3",
     "length-prefixed-stream": "~1.4.0",
-    "limitd-protocol": "limitd/protocol#v2.0.0",
+    "limitd-protocol": "limitd/protocol#v2.0.1",
     "lodash": "~3.7.0",
     "murmurhash3js": "^3.0.1",
     "reconnect-net": "0.0.0",
