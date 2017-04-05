@@ -24,7 +24,6 @@ function ShardClient(options) {
   this._clientParams = _.omit(this._options, ['shard', 'port']);
 
   if (Array.isArray(this._options.shard.hosts)) {
-    this.hostCount = this._options.shard.hosts.length;
     this.clients = _.sortBy(this._options.shard.hosts).map(host => this.createClient(host));
   } else if (this._options.shard.autodiscover) {
     this.autodiscover = this._options.shard.autodiscover;
@@ -74,20 +73,28 @@ ShardClient.prototype.discover = function() {
 
     this.clients.forEach(c => c.disconnect());
 
-    this.hostCount = this.currentHosts.length;
-
     this.clients = this.currentHosts.map(host => this.createClient(host));
   });
 };
 
 ShardClient.prototype.getDestinationClient = function(type, key) {
-  const index =  murmur(`${type}:${key}`) % this.hostCount;
+  if (!this.clients || this.clients.length === 0) {
+    return;
+  }
+  const index =  murmur(`${type}:${key}`) % this.clients.length;
   return this.clients[index];
 };
 
 ['reset', 'put', 'take', 'wait'].forEach(method => {
   ShardClient.prototype[method] = function(type, key) {
     const client = this.getDestinationClient(type, key);
+    if (!client) {
+      const lastArg = arguments[arguments.length - 1];
+      if (typeof lastArg === 'function') {
+        return setImmediate(lastArg, new Error('no shard available'));
+      }
+      return;
+    }
     return client[method].apply(client, arguments);
   };
 });

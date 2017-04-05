@@ -188,7 +188,6 @@ describe('ShardClient', function() {
 
     assert.equal(shardClient.clients[0].host, 'limitd://host-a:9231');
     assert.equal(shardClient.clients[1].host, 'limitd://host-b:9231');
-    assert.equal(shardClient.hostCount, 2);
   });
 
 
