@@ -44,7 +44,7 @@ ShardClient.prototype.createClient = function(host) {
     //map the events from LimitdClient.
     //Last parameter is always the underlying client.
     client.on('error',         (err) => this.emit('error', err, client))
-          .on('breaker_error', (err) => this.emit('breaker_error', err, client))
+          .on('trip',          (err, failures, cooldown) => this.emit('breaker_error', err, failures, cooldown, client))
           .on('connect',       ()    => this.emit('connect', client))
           .on('reconnect',     ()    => this.emit('reconnect', client))
           .on('close',         ()    => this.emit('close', client))
