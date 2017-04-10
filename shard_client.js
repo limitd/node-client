@@ -118,7 +118,7 @@ ShardClient.prototype.status = function(type, prefix, callback) {
 };
 
 ShardClient.prototype.ping = function(callback) {
-  async.applyEach(
+  async.each(
       this.clients,
       (client, callback) => client.ping(callback),
       callback);
