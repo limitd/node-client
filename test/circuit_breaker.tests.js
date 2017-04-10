@@ -18,6 +18,10 @@ describe('circuit breaker', function () {
         cooldown: 200,
         timeout: 100,
         maxFailures: 1,
+      },
+      retry: {
+        minTimeout: 5,
+        maxTimeout: 10,
       }
     }, done);
   });
@@ -55,15 +59,13 @@ describe('circuit breaker', function () {
       breaker_errors.push({ err, failures, cooldown });
     });
 
-    client.take('ip', '1232.312.error', 1, function (err1) {
+    client.take('ip', '1232.312.error', function (err1) {
       assert.equal(err1.message, 'limitd.request: specified timeout of 100ms was reached');
-
       const startTime = Date.now();
-      client.take('ip', '1232.312.error', 1, function (err2) {
+      client.take('ip', '1232.312.error', function (err2) {
         assert.equal(err2.message, 'limitd.request: the circuit-breaker is open');
         assert.equal(breaker_errors.length, 1);
         assert.equal(breaker_errors[0].err, err1);
-
         assert.closeTo(Date.now() - startTime, 0, 10);
         done();
       });
@@ -71,13 +73,13 @@ describe('circuit breaker', function () {
   });
 
   it('should only allow one request on half-open state', function (done) {
-    client.take('ip', '1232.312.error', 1, (err1) => {
+    client.take('ip', '1232.312.error', (err1) => {
       assert.equal(err1.message, 'limitd.request: specified timeout of 100ms was reached');
 
       setTimeout(() => {
         async.parallel([
-          (done) => client.take('ip', 'err', (err) => done(null, err)),
-          (done) => client.take('ip', 'err', (err) => done(null, err))
+          (done) => client.take('ip', 'test1', (err) => done(null, err)),
+          (done) => client.take('ip', 'test2', (err) => done(null, err))
         ], (err, errs) => {
           if (err) { return done(err); }
           assert.equal(errs[0].message, 'limitd.request: specified timeout of 100ms was reached');

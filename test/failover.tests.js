@@ -54,13 +54,23 @@ describe('limitd client failover', function() {
   });
 
   it('should connect to second service when first is down', function(done) {
-
-    servers[1].once('request', function (request) {
+    var server1Called = false;
+    servers[1].once('request', function (request, reply) {
+      server1Called = true;
       assert.equal(request.method, 'TAKE');
       assert.equal(request.type, 'ip');
       assert.equal(request.count, 1);
       assert.equal(request.all, false);
-      done();
+      const response = {
+        request_id: request.id,
+        'take': {
+          conformant: true,
+          remaining:  10,
+          reset:      11111111,
+          limit:      100
+        }
+      };
+      reply(response);
     });
 
     // stop first service
@@ -68,7 +78,10 @@ describe('limitd client failover', function() {
       if (err) { return done(err); }
       // invoke service
       setTimeout(() => {
-        client.take('ip', '191.12.23.32', 1, err => done(err));
+        client.take('ip', '191.12.23.32', 1, err => {
+          assert.ok(server1Called);
+          done(err);
+        });
       }, 1000);
     });
   });
