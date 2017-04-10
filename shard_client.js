@@ -6,6 +6,7 @@ const murmur = require('murmurhash3js').x86.hash32;
 const async  = require('async');
 const dns    = require('dns');
 const util   = require('util');
+const url    = require('url');
 
 const REFRESH_AFTER_MS = 1000 * 60 * 5;
 
@@ -24,7 +25,13 @@ function ShardClient(options) {
   this._clientParams = _.omit(this._options, ['shard', 'port']);
 
   if (Array.isArray(this._options.shard.hosts)) {
-    this.clients = _.sortBy(this._options.shard.hosts).map(host => this.createClient(host));
+    this.clients = _.sortBy(this._options.shard.hosts).map(host => {
+      if (url.parse(host).protocol === null) {
+        return this.createClient(`limitd://${host}:${this._options.port}`);
+      } else {
+        return this.createClient(host);
+      }
+    });
   } else if (this._options.shard.autodiscover) {
     this.autodiscover = this._options.shard.autodiscover;
     this.clients = [];

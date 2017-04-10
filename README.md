@@ -13,8 +13,8 @@ npm install limitd-client --save
 ## Example usage
 
 ```javascript
-var LimitdClient = require('limitd-client');
-var limitd = new LimitdClient('limitd://localhost:9001');
+const LimitdClient = require('limitd-client');
+const limitd = new LimitdClient('limitd://localhost:9001');
 
 //express middleware
 app.use(function (req, res, next) {
@@ -80,6 +80,40 @@ The callback will be call either with an Error object or a Response object.
 -  `response.reset`: a unix timestamp indicating when the bucket is going to be full again.
 
 This is useful for buckets that are not automatically filled or when the application needs to force a reset.
+
+## Sharding
+
+Sharding is implemented in the client-side by providing a list of limitd servers.
+
+Example
+
+```javascript
+const LimitdClient = require('limitd-client');
+
+const limitd = new LimitdClient({
+  shard: {
+    hosts: [ 'limitd://host-1', 'limitd://host-2' ]
+  }
+});
+
+limitd.take('ip', 'test', (err, resp) => console.dir(resp));
+```
+
+Alternatively you can have a DNS record and use autodiscovery:
+
+```javascript
+const LimitdClient = require('limitd-client');
+
+const limitd = new LimitdClient({
+  shard: {
+    autodiscovery: 'limitds.internal.company.com'
+  }
+});
+
+limitd.take('ip', 'test', (err, resp) => console.dir(resp));
+```
+
+This record will be poll every 5 minutes.
 
 ## License
 

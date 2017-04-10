@@ -15,6 +15,21 @@ describe('ShardClient', function() {
     });
   }
 
+  it('should work when full url are provided', function() {
+    const client = function(params) {
+      this.host = params.host;
+    };
+
+    const ShardClient = ShardClientCtor(client);
+
+    const shardClient = new ShardClient({
+      shard: { hosts: [ 'limitd://host-2:9231', 'limitd://host-1:9231' ] }
+    });
+
+    assert.equal(shardClient.clients[0].host, 'limitd://host-1:9231');
+    assert.equal(shardClient.clients[1].host, 'limitd://host-2:9231');
+  });
+
   it('should create a new client for each host', function() {
     const client = function(params) {
       this.host = params.host;
@@ -26,15 +41,26 @@ describe('ShardClient', function() {
       shard: { hosts: [ 'host-2', 'host-1' ] }
     });
 
-    assert.equal(shardClient.clients[0].host, 'host-1');
-    assert.equal(shardClient.clients[1].host, 'host-2');
+    assert.equal(shardClient.clients[0].host, 'limitd://host-1:9231');
+    assert.equal(shardClient.clients[1].host, 'limitd://host-2:9231');
   });
+
+  ['take', 'put', 'wait', 'status', 'on', 'once', 'ping'].forEach(method => {
+    it(`should define ${method}`, function() {
+      const shardClient = new ShardClient({
+        client: ()=>{},
+        shard: { hosts: [ 'host-1', 'host-2' ] }
+      });
+      assert.isFunction(shardClient[method]);
+    });
+  });
+
 
   it('should invoke PUT on the client based on the hash', function(done) {
     const client = function(params) {
       this.host = params.host;
       this.put = function(type, key, count, callback) {
-        assert.equal(this.host, 'host-2');
+        assert.equal(this.host, 'limitd://host-2:9231');
         assert.equal(type, 'ip');
         assert.equal(key, '10.0.0.1');
         assert.equal(count, 1);
@@ -57,7 +83,7 @@ describe('ShardClient', function() {
     const client = function(params) {
       this.host = params.host;
       this.take = function(type, key, count, callback) {
-        assert.equal(this.host, 'host-1');
+        assert.equal(this.host, 'limitd://host-1:9231');
         assert.equal(type, 'ip');
         assert.equal(key, '10.0.0.2');
         assert.equal(count, 1);
@@ -79,7 +105,7 @@ describe('ShardClient', function() {
     const client = function(params) {
       this.host = params.host;
       this.put = function(type, key, count, callback) {
-        assert.equal(this.host, 'host-1');
+        assert.equal(this.host, 'limitd://host-1:9231');
         assert.equal(type, 'ip');
         assert.equal(key, '10.0.0.2');
         assert.equal(count, 1);
@@ -118,10 +144,10 @@ describe('ShardClient', function() {
 
     shardClient.status('ip', '10.0.0.2', (err, response) => {
       if (err) { return done(err); }
-      assert.include(response.items, 'item1-from-host-1');
-      assert.include(response.items, 'item2-from-host-1');
-      assert.include(response.items, 'item1-from-host-2');
-      assert.include(response.items, 'item2-from-host-2');
+      assert.include(response.items, 'item1-from-limitd://host-1:9231');
+      assert.include(response.items, 'item2-from-limitd://host-1:9231');
+      assert.include(response.items, 'item1-from-limitd://host-2:9231');
+      assert.include(response.items, 'item2-from-limitd://host-2:9231');
       done();
     });
   });
@@ -130,7 +156,7 @@ describe('ShardClient', function() {
     const client = function(params) {
       this.host = params.host;
       this.status = function(type, prefix, callback) {
-        if (this.host === 'host-2') {
+        if (this.host === 'limitd://host-2:9231') {
           return callback(new Error('unreachable'));
         }
         callback(null, {
@@ -151,10 +177,10 @@ describe('ShardClient', function() {
     shardClient.status('ip', '10.0.0.2', (err, response) => {
       if (err) { return done(err); }
       assert.equal(response.errors[0].message, 'unreachable');
-      assert.include(response.items, 'item1-from-host-1');
-      assert.include(response.items, 'item2-from-host-1');
-      assert.notInclude(response.items, 'item1-from-host-2');
-      assert.notInclude(response.items, 'item2-from-host-2');
+      assert.include(response.items, 'item1-from-limitd://host-1:9231');
+      assert.include(response.items, 'item2-from-limitd://host-1:9231');
+      assert.notInclude(response.items, 'item1-from-limitd://host-2:9231');
+      assert.notInclude(response.items, 'item2-from-limitd://host-2:9231');
       done();
     });
   });
