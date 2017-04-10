@@ -117,5 +117,21 @@ ShardClient.prototype.status = function(type, prefix, callback) {
   });
 };
 
+ShardClient.prototype.ping = function(type, prefix, callback) {
+  async.map(this.clients, (client, callback) => {
+    client.ping((err) => {
+      if (err) {
+        return callback(null, { error: err });
+      }
+      callback();
+    });
+  }, (err, responses) => {
+    if (err) { return callback(err); }
+    callback(null, {
+      errors: responses.map(r => r.error).filter(e => e)
+    });
+  });
+};
+
 
 module.exports = ShardClient;
