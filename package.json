@@ -4,7 +4,8 @@
   "description": "limitd client for node.js",
   "main": "index.js",
   "scripts": {
-    "test": "mocha --timeout 10000"
+    "test": "nyc mocha --timeout 10000",
+    "coverage": "nyc report --reporter=lcov && node-open ./coverage/lcov-report/index.html"
   },
   "author": "José F. Romaniello <jfromaniello@gmail.com> (http://joseoncode.com)",
   "license": "MIT",
@@ -23,7 +24,9 @@
     "async": "~2.1.2",
     "chai": "^3.5.0",
     "mocha": "~2.2.4",
-    "mockuire": "^1.1.0"
+    "mockuire": "^1.1.0",
+    "nyc": "^10.2.0",
+    "open": "github:jfromaniello/node-open#add_bin"
   },
   "homepage": "https://github.com/limitd/node-client",
   "repository": {
