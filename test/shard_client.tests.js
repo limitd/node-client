@@ -185,6 +185,30 @@ describe('ShardClient', function() {
     });
   });
 
+  it('should ping all hosts on ping', function(done) {
+    const pinged = [];
+    const client = function(params) {
+      this.host = params.host;
+      this.ping = function(callback) {
+        pinged.push(this.host);
+        callback(null, {});
+      };
+    };
+
+    const ShardClient = ShardClientCtor(client);
+
+    const shardClient = new ShardClient({
+      shard: { hosts: [ 'host-1', 'host-2' ] }
+    });
+
+    shardClient.ping((err) => {
+      if (err) { return done(err); }
+      assert.equal(pinged[0], 'limitd://host-1:9231');
+      assert.equal(pinged[1], 'limitd://host-2:9231');
+      done();
+    });
+  });
+
 
   it('should autodiscover limitd shards', function() {
     const client = function(params) {
