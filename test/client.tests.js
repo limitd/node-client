@@ -14,8 +14,19 @@ describe('limitd client (standard)', function () {
   });
 
   before(function (done) {
-    client = new LimitdClient({ protocol_version: 2 });
+    client = new LimitdClient({
+      protocol_version: 2,
+      retry: {
+        minTimeout: 1,
+        maxTimeout: 5,
+      },
+      timeout: 10
+    });
     client.once('connect', done);
+  });
+
+  beforeEach(() => {
+    client.resetCircuitBreaker();
   });
 
   after(function (done) {

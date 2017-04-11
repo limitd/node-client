@@ -6,6 +6,7 @@ const reconnect    = require('reconnect-net');
 const failover     = require('tcp-client-failover');
 const Transform    = require('stream').Transform;
 const Protocol     = require('limitd-protocol');
+const retry        = require('retry');
 
 const disyuntor    = require('disyuntor');
 
@@ -15,6 +16,21 @@ const lpm = require('length-prefixed-message');
 const defaults = {
   port: 9231,
   host: 'localhost'
+};
+
+const circuitBreakerDefaults = {
+  name: 'limitd.request',
+  maxFailures: 30,
+  cooldown:    '5s',
+  maxCooldown: '20s',
+  timeout:     500,
+  trigger: err => err && err.message !== 'Invalid bucket type'
+};
+
+const retryDefaults = {
+  retries: 3,
+  minTimeout: 200,
+  maxTimeout: 800,
 };
 
 function QueuedRequest(callback) {
@@ -76,20 +92,27 @@ function LimitdClient (options, done) {
     options.breaker = {};
   }
 
-  options.breaker.timeout = options.breaker.timeout || options.timeout || '1s';
+  if (typeof options.timeout !== 'undefined') {
+    options.breaker.timeout = options.timeout;
+  }
 
-  // this._request = this._directRequest;
-  this._request = disyuntor((request, callback) => {
-    this._directRequest(request, callback);
-  }, _.extend({
-    name: 'limitd.request',
+  this.retryParams = _.extend({}, retryDefaults, options.retry);
+
+  // _directRequest is the implementation of the request to limitd.
+  // _protectedRequest is directRequest protected by circuit-breaker.
+  // _retriedRequest does retry on case of failures when the circuit-breaker is closed.
+
+  const circuitBreakerParams = _.extend({
     onTrip: (err, failures, cooldown) => {
       this.emit('trip', err, failures, cooldown);
     },
-    trigger: err => err && err.message !== 'Invalid bucket type'
-  }, options.breaker || { }));
+  }, circuitBreakerDefaults, options.breaker);
 
-  this.resetCircuitBreaker = () => this._request.reset();
+  this._protectedRequest = disyuntor((request, callback) => {
+    this._directRequest(request, callback);
+  }, circuitBreakerParams);
+
+  this.resetCircuitBreaker = () => this._protectedRequest.reset();
 
   this.currentId = 0;
 
@@ -256,6 +279,27 @@ LimitdClient.prototype._directRequest = function (request, callback) {
   this.pending_requests[request.id] = new QueuedRequest(callback);
 };
 
+LimitdClient.prototype._retriedRequest = function(request, callback) {
+  const operation = retry.operation(this.retryParams);
+  operation.attempt(() => {
+    this._protectedRequest(request, (err, result) => {
+      if (err) {
+        if (err instanceof disyuntor.DisyuntorError && err.reason === 'open') {
+          return callback(operation.errors()[0] || err);
+        }
+        if (err.message === 'Invalid bucket type') {
+          return callback(err);
+        }
+        if (operation.retry(err)) {
+          return;
+        }
+        callback(operation.errors()[0] || err);
+      }
+      callback(null, result);
+    });
+  });
+};
+
 LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
   if (typeof count === 'function') {
     done = count;
@@ -286,7 +330,7 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     request.count = count;
   }
 
-  return this._request(request, done);
+  return this._retriedRequest(request, done);
 };
 
 LimitdClient.prototype.take = function (type, key, count, done) {
@@ -334,7 +378,7 @@ LimitdClient.prototype.put = function (type, key, count, done) {
     return this._fireAndForgetRequest(request);
   }
 
-  return this._request(request, done);
+  return this._retriedRequest(request, done);
 };
 
 LimitdClient.prototype.status = function (type, key, done) {
@@ -349,7 +393,7 @@ LimitdClient.prototype.status = function (type, key, done) {
     'method': 'STATUS',
   };
 
-  return this._request(request, done);
+  return this._retriedRequest(request, done);
 };
 
 LimitdClient.prototype.ping = function (done) {
@@ -360,7 +404,7 @@ LimitdClient.prototype.ping = function (done) {
     'method': 'PING',
   };
 
-  return this._request(request, done);
+  return this._protectedRequest(request, done);
 };
 
 module.exports = LimitdClient;
