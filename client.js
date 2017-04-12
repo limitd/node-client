@@ -293,7 +293,7 @@ LimitdClient.prototype._retriedRequest = function(request, callback) {
         if (operation.retry(err)) {
           return;
         }
-        callback(operation.errors()[0] || err);
+        return callback(operation.errors()[0] || err);
       }
       callback(null, result);
     });
