@@ -44,6 +44,12 @@ describe('limitd client (standard)', function () {
     assert.instanceOf(client, ShardClient);
   });
 
+  it('should allow parameters on the url', function() {
+    const client = new LimitdClient('limitd://localhost?retry=false&timeout=5');
+    assert.equal(client.retryParams, false);
+    assert.equal(client._options.timeout, '5');
+  });
+
   ['take', 'wait'].forEach(function (method) {
 
     it('should be able to send ' + method.toUpperCase() + ' requests', function (done) {

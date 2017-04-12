@@ -77,8 +77,16 @@ function LimitdClient (options, done) {
       if (host.match(/\.socket$/)) {
         host = { port: host };
       } else {
-        host = _.pick(url.parse(host), ['port', 'hostname']);
+        const parsedUrl = url.parse(host, true);
+        host = _.pick(parsedUrl, ['port', 'hostname']);
         host.port = host.port ? parseInt(host.port, 10) : defaults.port;
+        if (parsedUrl.query) {
+          const newOptions = _.reduce(parsedUrl.query, (r, value, key) => {
+            r[key] = value === 'false' ? false : value;
+            return r;
+          }, {});
+          _.extend(options, newOptions);
+        }
       }
     }
     return host;
@@ -96,7 +104,11 @@ function LimitdClient (options, done) {
     options.breaker.timeout = options.timeout;
   }
 
-  this.retryParams = _.extend({}, retryDefaults, options.retry);
+  if (options.retry === false) {
+    this.retryParams = false;
+  } else {
+    this.retryParams = _.extend({}, retryDefaults, options.retry);
+  }
 
   // _directRequest is the implementation of the request to limitd.
   // _protectedRequest is directRequest protected by circuit-breaker.
@@ -280,6 +292,10 @@ LimitdClient.prototype._directRequest = function (request, callback) {
 };
 
 LimitdClient.prototype._retriedRequest = function(request, callback) {
+  if(!this.retryParams) {
+    return this._protectedRequest(request, callback);
+  }
+
   const operation = retry.operation(this.retryParams);
   operation.attempt(() => {
     this._protectedRequest(request, (err, result) => {

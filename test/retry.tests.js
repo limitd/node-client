@@ -5,7 +5,7 @@ const assert = require('chai').assert;
 
 describe('retry errors', function () {
   const server = new MockServer({ port });
-  var client;
+  var client, clientWithouRetry;
 
   before(done => server.listen(done));
 
@@ -13,6 +13,13 @@ describe('retry errors', function () {
     server.removeAllListeners('request');
     client = new LimitdClient({
       hosts: [`limitd://localhost:${port}`],
+    }, done);
+  });
+
+  beforeEach(done => {
+    clientWithouRetry = new LimitdClient({
+      hosts: [`limitd://localhost:${port}`],
+      retry: false
     }, done);
   });
 
@@ -38,7 +45,6 @@ describe('retry errors', function () {
     });
   });
 
-
   it('should retry on timeout', function(done) {
     var times = 0;
 
@@ -50,4 +56,17 @@ describe('retry errors', function () {
       done();
     });
   });
+
+  it('should not retry if disabled', function(done) {
+    var times = 0;
+
+    server.on('request', () => times++);
+
+    clientWithouRetry.take('ip', '1232.312.error', function (err) {
+      assert.equal(times, 1);
+      assert.match(err.message, /timeout/);
+      done();
+    });
+  });
+
 });
