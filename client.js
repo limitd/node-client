@@ -346,6 +346,10 @@ LimitdClient.prototype._takeOrWait = function (method, type, key, count, done) {
     request.count = count;
   }
 
+  if (method === 'WAIT') {
+    return this._directRequest(request, done);
+  }
+
   return this._retriedRequest(request, done);
 };
 

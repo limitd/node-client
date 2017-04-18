@@ -45,6 +45,19 @@ describe('retry errors', function () {
     });
   });
 
+  it('should not retry a wait request', function (done) {
+    var times = 0;
+
+    server.on('request', () => times++);
+
+    client.wait('ip', '1232.312.error', () => {});
+
+    setTimeout(() => {
+      assert.equal(times, 1, 'wait requests should not be retried');
+      done();
+    }, 1000);
+  });
+
   it('should retry on timeout', function(done) {
     var times = 0;
 
