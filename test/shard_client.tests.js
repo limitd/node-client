@@ -1,19 +1,38 @@
 const ShardClient = require('../shard_client');
 const assert      = require('chai').assert;
 const _           = require('lodash');
-const mockuire    = require('mockuire')(module);
+const proxyquire  = require('proxyquire');
+
 
 describe('ShardClient', function() {
   it('should fail if shard is not specified', function() {
     assert.throws(() => new ShardClient(), /shard is required/);
     assert.throws(() => new ShardClient({}), /shard is required/);
+    assert.throws(() => new ShardClient({ shard: {} }), /unsupported shard configuration/);
   });
 
   function ShardClientCtor(client) {
-    return mockuire('../shard_client', {
+    return proxyquire('../shard_client', {
       './client': client
     });
   }
+
+  it('should fail when no shards are available', function(done) {
+    const client = function(params) {
+      this.host = params.host;
+    };
+
+    const ShardClient = ShardClientCtor(client);
+
+    const shardClient = new ShardClient({
+      shard: { hosts: [ ] }
+    });
+
+    shardClient.put('test', 'foo', (err) => {
+      assert.match(err.message, /no shard available/);
+      done();
+    });
+  });
 
   it('should work when full url are provided', function() {
     const client = function(params) {
@@ -26,8 +45,10 @@ describe('ShardClient', function() {
       shard: { hosts: [ 'limitd://host-2:9231', 'limitd://host-1:9231' ] }
     });
 
-    assert.equal(shardClient.clients[0].host, 'limitd://host-1:9231');
-    assert.equal(shardClient.clients[1].host, 'limitd://host-2:9231');
+    assert.equal(shardClient.clients['host-1:9231'].host, 'limitd://host-1:9231');
+    assert.equal(shardClient.clients['host-2:9231'].host, 'limitd://host-2:9231');
+    assert.ok(shardClient.ring.servers.some(s => s.host === 'host-1' && s.port === 9231));
+    assert.ok(shardClient.ring.servers.some(s => s.host === 'host-2' && s.port === 9231));
   });
 
   it('should create a new client for each host', function() {
@@ -41,8 +62,8 @@ describe('ShardClient', function() {
       shard: { hosts: [ 'host-2', 'host-1' ] }
     });
 
-    assert.equal(shardClient.clients[0].host, 'limitd://host-1:9231');
-    assert.equal(shardClient.clients[1].host, 'limitd://host-2:9231');
+    assert.equal(shardClient.clients['host-1:9231'].host, 'limitd://host-1:9231');
+    assert.equal(shardClient.clients['host-2:9231'].host, 'limitd://host-2:9231');
   });
 
   ['take', 'put', 'wait', 'status', 'on', 'once', 'ping'].forEach(method => {
@@ -60,7 +81,7 @@ describe('ShardClient', function() {
     const client = function(params) {
       this.host = params.host;
       this.put = function(type, key, count, callback) {
-        assert.equal(this.host, 'limitd://host-2:9231');
+        assert.equal(this.host, 'limitd://host-1:9231');
         assert.equal(type, 'ip');
         assert.equal(key, '10.0.0.1');
         assert.equal(count, 1);
@@ -223,7 +244,7 @@ describe('ShardClient', function() {
       }
     };
 
-    const SharedClient = mockuire('../shard_client', {
+    const SharedClient = proxyquire('../shard_client', {
       './client': client,
       'dns': dns
     });
@@ -236,9 +257,123 @@ describe('ShardClient', function() {
       }
     });
 
-    assert.equal(shardClient.clients[0].host, 'limitd://host-a:9231');
-    assert.equal(shardClient.clients[1].host, 'limitd://host-b:9231');
+    assert.equal(shardClient.clients['host-a:9231'].host, 'limitd://host-a:9231');
+    assert.equal(shardClient.clients['host-b:9231'].host, 'limitd://host-b:9231');
+    assert.ok(shardClient.ring.servers.some(s => s.host === 'host-b' && s.port === 9231));
+    assert.ok(shardClient.ring.servers.some(s => s.host === 'host-a' && s.port === 9231));
   });
+
+  it('should add new shards', function(done) {
+    var clientsCreated = 0;
+    const client = function(params) {
+      clientsCreated++;
+      this.host = params.host;
+    };
+
+    var resolveCalls = 0;
+
+    const dns = {
+      resolve: (address, type, callback) => {
+        assert.equal(address, 'foo.bar.company.example.com');
+        assert.equal(type, 'A');
+        resolveCalls++;
+        if (resolveCalls === 1)  {
+          callback(null, [ 'host-b', 'host-a' ]);
+        } else if (resolveCalls === 2)  {
+          callback(null, [ 'host-c', 'host-b', 'host-a' ]);
+        }
+      }
+    };
+
+    const SharedClient = proxyquire('../shard_client', {
+      './client': client,
+      'dns': dns
+    });
+
+    const shardClient = new SharedClient({
+      shard: {
+        autodiscover: {
+          refreshInterval: 10,
+          address: 'foo.bar.company.example.com'
+        }
+      }
+    });
+
+
+    shardClient.on('new client', () => {
+      if (resolveCalls === 1) {
+        assert.equal(shardClient.ring.servers.length, 2);
+        assert.equal(clientsCreated, 2);
+      } else {
+        assert.equal(shardClient.ring.servers.length, 3);
+        assert.equal(clientsCreated, 3);
+        assert.equal(shardClient.clients['host-a:9231'].host, 'limitd://host-a:9231');
+        assert.equal(shardClient.clients['host-b:9231'].host, 'limitd://host-b:9231');
+        assert.equal(shardClient.clients['host-c:9231'].host, 'limitd://host-c:9231');
+        assert.ok(shardClient.ring.servers.some(s => s.host === 'host-c' && s.port === 9231));
+        assert.ok(shardClient.ring.servers.some(s => s.host === 'host-b' && s.port === 9231));
+        assert.ok(shardClient.ring.servers.some(s => s.host === 'host-a' && s.port === 9231));
+        done();
+      }
+    });
+  });
+
+  it('should remove shards', function(done) {
+    var clientsCreated = 0;
+    var clients = [];
+    const client = function(params) {
+      clientsCreated++;
+      this.host = params.host;
+      this.disconnect = () => this.disconnected = true;
+      clients.push(this);
+    };
+
+    var resolveCalls = 0;
+
+    const dns = {
+      resolve: (address, type, callback) => {
+        assert.equal(address, 'foo.bar.company.example.com');
+        assert.equal(type, 'A');
+        resolveCalls++;
+        if (resolveCalls === 1)  {
+          callback(null, [ 'host-b', 'host-a' ]);
+        } else if (resolveCalls === 2)  {
+          callback(null, [ 'host-a' ]);
+        }
+      }
+    };
+
+    const SharedClient = proxyquire('../shard_client', {
+      './client': client,
+      'dns': dns
+    });
+
+    const shardClient = new SharedClient({
+      shard: {
+        autodiscover: {
+          refreshInterval: 10,
+          address: 'foo.bar.company.example.com'
+        }
+      }
+    });
+
+
+    shardClient.once('new client', () => {
+      assert.equal(shardClient.ring.servers.length, 2);
+      assert.equal(clientsCreated, 2);
+    }).once('removed client', () => {
+      assert.equal(shardClient.ring.servers.length, 1);
+      assert.equal(clientsCreated, 2);
+      assert.equal(shardClient.clients['host-a:9231'].host, 'limitd://host-a:9231');
+      assert.notOk(shardClient.ring.servers.some(s => s.host === 'host-b' && s.port === 9231));
+      assert.ok(shardClient.ring.servers.some(s => s.host === 'host-a' && s.port === 9231));
+      assert.ok(clients.some(c => c.disconnected && c.host === 'limitd://host-b:9231'));
+      assert.ok(clients.some(c => !c.disconnected && c.host === 'limitd://host-a:9231'));
+      done();
+    });
+  });
+
+
 
 
 });

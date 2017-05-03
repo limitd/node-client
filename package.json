@@ -12,11 +12,12 @@
   "dependencies": {
     "async": "^2.3.0",
     "disyuntor": "^2.0.0",
+    "hashring": "^3.2.0",
     "length-prefixed-message": "^3.0.3",
     "length-prefixed-stream": "~1.4.0",
     "limitd-protocol": "limitd/protocol#v2.0.1",
     "lodash": "~3.7.0",
-    "murmurhash3js": "^3.0.1",
+    "ms": "^1.0.0",
     "reconnect-net": "0.0.0",
     "retry": "^0.10.1",
     "tcp-client-failover": "^1.0.2"
@@ -26,7 +27,8 @@
     "mocha": "~2.2.4",
     "mockuire": "^1.1.0",
     "nyc": "^10.2.0",
-    "open": "github:jfromaniello/node-open#add_bin"
+    "open": "github:jfromaniello/node-open#add_bin",
+    "proxyquire": "^1.7.11"
   },
   "homepage": "https://github.com/limitd/node-client",
   "repository": {

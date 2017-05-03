@@ -1,14 +1,14 @@
 const LimitdClient = require('./client');
 const EventEmitter = require('events').EventEmitter;
+const Hashring = require('hashring');
 
 const _      = require('lodash');
-const murmur = require('murmurhash3js').x86.hash32;
 const async  = require('async');
 const dns    = require('dns');
 const util   = require('util');
 const url    = require('url');
 
-const REFRESH_AFTER_MS = 1000 * 60 * 5;
+const ms = require('ms');
 
 const defaults = {
   port: 9231
@@ -25,17 +25,19 @@ function ShardClient(options) {
   this._clientParams = _.omit(this._options, ['shard', 'port']);
 
   if (Array.isArray(this._options.shard.hosts)) {
-    this.clients = _.sortBy(this._options.shard.hosts).map(host => {
+    this.clients = this._options.shard.hosts.reduce((result, host) => {
       if (url.parse(host).protocol === null) {
-        return this.createClient(`limitd://${host}:${this._options.port}`);
+        result[`${host}:${this._options.port}`] = this.createClient(`limitd://${host}:${this._options.port}`);
       } else {
-        return this.createClient(host);
+        result[host.replace(/^(.*)\/\//, '')] = this.createClient(host);
       }
-    });
+      return result;
+    }, {});
+    this.ring = new Hashring(Object.keys(this.clients));
   } else if (this._options.shard.autodiscover) {
-    this.autodiscover = this._options.shard.autodiscover;
-    this.clients = [];
-    this.currentHosts = [];
+    this.autodiscover = _.extend({ refreshInterval: ms('5m') }, this._options.shard.autodiscover);
+    this.clients = {};
+    this.ring = new Hashring([]);
     this.discover();
   } else {
     throw new Error('unsupported shard configuration');
@@ -62,25 +64,32 @@ ShardClient.prototype.createClient = function(host) {
 };
 
 ShardClient.prototype.discover = function() {
-  dns.resolve(this.autodiscover.address, this.autodiscover.type || 'A', (err, addresses) => {
-    setTimeout(() => this.discover(), REFRESH_AFTER_MS);
+  dns.resolve(this.autodiscover.address, this.autodiscover.type || 'A', (err, ips) => {
+    setTimeout(() => this.discover(), this.autodiscover.refreshInterval);
     if (err) {
       return this.emit('error', err);
     }
 
-    const newList = _.sortBy(addresses)
-                     .map(ip => `limitd://${ip}:${this._options.port}`);
+    ips.filter(ip => !this.ring.servers.some(s => s.host === ip && s.port === this._options.port))
+      .forEach(newIp => {
+        const ipPort = `${newIp}:${this._options.port}`;
+        this.ring.add(ipPort);
+        this.clients[ipPort] = this.createClient(`limitd://${ipPort}`);
+        this.emit('new client', this.clients[ipPort]);
+      });
 
-    if (_.isEqual(newList, this.currentHosts)) {
-      //the list hasn't changed
-      return;
-    }
-
-    this.currentHosts = newList;
-
-    this.clients.forEach(c => c.disconnect());
-
-    this.clients = this.currentHosts.map(host => this.createClient(host));
+    this.ring.servers
+        .filter(server => !ips.some(ip => server.host === ip))
+        .forEach(oldServer => {
+          const ipPort = `${oldServer.host}:${oldServer.port}`;
+          if (this.clients[ipPort]) {
+            this.ring.remove(ipPort);
+            const client = this.clients[ipPort];
+            client.disconnect();
+            delete this.clients[ipPort];
+            this.emit('removed client', client);
+          }
+        });
   });
 };
 
@@ -88,8 +97,7 @@ ShardClient.prototype.getDestinationClient = function(type, key) {
   if (!this.clients || this.clients.length === 0) {
     return;
   }
-  const index =  murmur(`${type}:${key}`) % this.clients.length;
-  return this.clients[index];
+  return this.clients[this.ring.get(`${type}:${key}`)];
 };
 
 ['reset', 'put', 'take', 'wait'].forEach(method => {
