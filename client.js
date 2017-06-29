@@ -273,22 +273,30 @@ LimitdClient.prototype._responseHandler = function(response, queuedRequest) {
 
 LimitdClient.prototype._fireAndForgetRequest = function (request) {
   if (!this.stream || !this.stream.writable) {
-    const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
-    return this.emit('error', err);
+		const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
+		return this.emit('error', err);
   }
 
-  lpm.write(this.stream, Protocol.Request.encode(request));
+	try {
+  	lpm.write(this.stream, Protocol.Request.encode(request));
+	} catch (e) {
+		return this.emit('error', e);
+	}
 };
 
 LimitdClient.prototype._directRequest = function (request, callback) {
   if (!this.stream || !this.stream.writable) {
-    const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
-    return setImmediate(callback, err);
+		const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
+		return setImmediate(callback, err);
   }
 
-  lpm.write(this.stream, Protocol.Request.encode(request));
+	try {
+		lpm.write(this.stream, Protocol.Request.encode(request));
+	} catch (e) {
+		return setImmediate(callback, e);
+	}
 
-  this.pending_requests[request.id] = new QueuedRequest(callback);
+	this.pending_requests[request.id] = new QueuedRequest(callback);
 };
 
 LimitdClient.prototype._retriedRequest = function(request, callback) {

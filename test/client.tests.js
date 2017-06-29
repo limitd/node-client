@@ -91,6 +91,21 @@ describe('limitd client (standard)', function () {
     client.put('ip', '191.12.23.32', _.noop);
   });
 
+  it('should handle stream errors for PUT requests', function (done) {
+    const client = new LimitdClient();
+		client.stream = {
+			writable: true,
+			write: function() {
+				throw new Error('write EPIPE');
+			}
+		};
+
+		client.put('ip', '191.12.23.32', function(err) {
+      assert.ok(err);
+      assert.match(err.message, /write EPIPE/);
+			done();
+		});
+  });
 
   it('should be able to send callback-less PUT requests', function (done) {
     server.once('request', function (request) {
@@ -105,6 +120,23 @@ describe('limitd client (standard)', function () {
     });
 
     client.put('ip', '191.12.23.32');
+  });
+
+  it('should handle stream errors for callback-less PUT requests', function (done) {
+    const client = new LimitdClient();
+		client.stream = {
+			writable: true,
+			write: function() {
+				throw new Error('write EPIPE');
+			}
+		};
+
+		client.on('error', function(err) {
+      assert.ok(err);
+      assert.match(err.message, /write EPIPE/);
+			done();
+		});
+		client.put('ip', '191.12.23.32');
   });
 
   it('should be able to send status requests', function (done) {
