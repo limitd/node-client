@@ -277,7 +277,11 @@ LimitdClient.prototype._fireAndForgetRequest = function (request) {
     return this.emit('error', err);
   }
 
-  lpm.write(this.stream, Protocol.Request.encode(request));
+  try {
+    lpm.write(this.stream, Protocol.Request.encode(request));
+  } catch (e) {
+    return this.emit('error', e);
+  }
 };
 
 LimitdClient.prototype._directRequest = function (request, callback) {
@@ -286,7 +290,11 @@ LimitdClient.prototype._directRequest = function (request, callback) {
     return setImmediate(callback, err);
   }
 
-  lpm.write(this.stream, Protocol.Request.encode(request));
+  try {
+    lpm.write(this.stream, Protocol.Request.encode(request));
+  } catch (e) {
+    return setImmediate(callback, e);
+  }
 
   this.pending_requests[request.id] = new QueuedRequest(callback);
 };
