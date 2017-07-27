@@ -172,8 +172,8 @@ LimitdClient.prototype._connectUsingReconnect = function (done) {
   done = done || _.noop;
 
   this.socket = reconnect({
-                  initialDelay: 200,
-                  maxDelay: 1000
+                  initialDelay: 5,
+                  maxDelay: 50
                 }, stream => {
                   this._onNewStream(stream);
                 }).once('connect', (connection) => {
