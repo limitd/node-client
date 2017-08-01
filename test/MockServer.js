@@ -58,7 +58,7 @@ util.inherits(MockServer, EventEmitter);
 MockServer.prototype.listen = function (done) {
   var listener = this._server.listen(this._options.port || 9231, () => {
     this._server.port = listener.address().port;
-    done();
+    if (done) { done(); }
   });
 };
 

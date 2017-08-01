@@ -81,6 +81,18 @@ The callback will be call either with an Error object or a Response object.
 
 This is useful for buckets that are not automatically filled or when the application needs to force a reset.
 
+## Events
+
+- `connect`: emitted when the client connects to the server.
+- `disconnect([err])`: emitted when the client disconnects from the server.
+- `error`: emitted in case of errors
+- `reconnect(n, delay)`: emitted when attempting to restablish the connection. See [reconnect-core](https://www.npmjs.com/package/reconnect-core).
+- `trip(err, failures, cooldown)`: emitted when the circuit-breaker mechanism trips.
+- `ready`: emitted when the client is ready to send requests.
+- `response`: emitted when the client receives a response. Useful for metrics and debug.
+
+Note: Events on the shard client have the same signature but the last parameter is the instance of the client.
+
 ## Sharding
 
 Sharding is implemented in the client-side by providing a list of limitd servers.

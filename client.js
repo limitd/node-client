@@ -171,18 +171,19 @@ LimitdClient.prototype._connectUsingReconnect = function (done) {
 
   done = done || _.noop;
 
+  this.once('connect', done);
+
+  const self = this;
+
   this.socket = reconnect({
-                  initialDelay: 5,
-                  maxDelay: 50
+                  initialDelay: 200,
+                  maxDelay: 1000
                 }, stream => {
                   this._onNewStream(stream);
-                }).once('connect', (connection) => {
-                  connection.setKeepAlive(true, 50);
-                  connection.setNoDelay();
-                  setImmediate(() => {
-                    this.emit('connect');
-                    done();
+                  this.socket.once('disconnect', (err) => {
+                    this.emit('disconnect', err);
                   });
+                  self.emit('connect');
                 }).on('close', (has_error) => {
                   this.emit('close', has_error);
                 }).on('error', (err) => {
@@ -214,6 +215,9 @@ LimitdClient.prototype._connectUsingFailover = function (done) {
 };
 
 LimitdClient.prototype._onNewStream = function (stream) {
+  stream.setKeepAlive(true, 50);
+  stream.setNoDelay();
+
   stream
   .pipe(lps.decode())
   .pipe(Transform({
