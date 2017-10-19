@@ -1,7 +1,7 @@
 const ShardClient = require('../shard_client');
 const assert      = require('chai').assert;
 const _           = require('lodash');
-const proxyquire  = require('proxyquire');
+const proxyquire  = require('proxyquire').noPreserveCache();
 
 
 describe('ShardClient', function() {
@@ -148,12 +148,19 @@ describe('ShardClient', function() {
     const client = function(params) {
       this.host = params.host;
       this.status = function(type, prefix, callback) {
-        callback(null, {
-          items: [
-            `item1-from-${this.host}`,
-            `item2-from-${this.host}`
-          ]
-        });
+        if (this.host === 'limitd://host-1:9231') {
+          callback(null, {
+            items: [
+              { instance: `item1-from-host-1` }
+            ]
+          });
+        } else {
+          callback(null, {
+            items: [
+              { instance: `item2-from-host-2` }
+            ]
+          });
+        }
       };
     };
 
@@ -162,14 +169,91 @@ describe('ShardClient', function() {
     const shardClient = new ShardClient({
       shard: { hosts: [ 'host-1', 'host-2' ] }
     });
+    // Mock routing
+    shardClient.getDestinationClient = function(type, key) {
+      if (key === 'item1-from-host-1') {
+        return this.clients['host-1:9231'];
+      } else {
+        return this.clients['host-2:9231'];
+      }
+    }
 
     shardClient.status('ip', '10.0.0.2', (err, response) => {
       if (err) { return done(err); }
-      assert.include(response.items, 'item1-from-limitd://host-1:9231');
-      assert.include(response.items, 'item2-from-limitd://host-1:9231');
-      assert.include(response.items, 'item1-from-limitd://host-2:9231');
-      assert.include(response.items, 'item2-from-limitd://host-2:9231');
+
+      assert.include(response.items, { instance: `item1-from-host-1` });
+      assert.include(response.items, { instance: `item2-from-host-2` });
       done();
+    });
+  });
+
+  describe('when adding a new host to the shard', function() {
+    it('should not return instances from hosts that does not hold the instance anymore', function(done) {
+      const client = function(params) {
+        this.host = params.host;
+        this.status = function(type, prefix, callback) {
+          // All hosts returns the same instances, the shard client must select
+          // the status of the host that currently must host the instance
+          callback(null, {
+              items: [
+                {
+                  instance: 'ip|1|' + this.host,
+                  remaining: 10,
+                  reset: 0,
+                  limit: 10
+                },
+                {
+                  instance: 'ip|2|' + this.host,
+                  remaining: 10,
+                  reset: 0,
+                  limit: 10
+                }
+              ]
+          });
+        };
+      };
+
+      const dns = {
+        resolve: (address, type, callback) => {
+          callback(null, [ 'host-b', 'host-a' ]);
+        }
+      };
+
+      const SharedClient = proxyquire('../shard_client', {
+        './client': client,
+        'dns': dns
+      });
+
+      const shardClient = new SharedClient({
+        shard: {
+          autodiscover: {
+            address: 'foo.bar.company.example.com'
+          }
+        }
+      });
+
+      // Mock routing
+      shardClient.getDestinationClient = function(type, key) {
+        if (key === 'ip|1|limitd://host-a:9231') {
+          return this.clients['host-a:9231'];
+        } else if (key === 'ip|2|limitd://host-b:9231') {
+          return this.clients['host-b:9231'];
+        }
+      }
+
+      shardClient.status('ip', '10.0.0.2', (err, response) => {
+        if (err) { return done(err); }
+
+        assert.deepEqual(response, {
+          items: [
+            { instance: 'ip|2|limitd://host-b:9231', remaining: 10, reset: 0, limit: 10 },
+            { instance: 'ip|1|limitd://host-a:9231', remaining: 10, reset: 0, limit: 10 }
+          ],
+          errors: []
+        });
+
+        done();
+      });
     });
   });
 

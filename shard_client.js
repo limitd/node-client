@@ -121,6 +121,8 @@ ShardClient.prototype.status = function(type, prefix, callback) {
       if (err) {
         return callback(null, { error: err });
       }
+
+      response.items = response.items.filter(i => this.getDestinationClient(type, i.instance) === client);
       callback(null, response);
     });
   }, (err, responses) => {
