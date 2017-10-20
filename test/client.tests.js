@@ -124,18 +124,22 @@ describe('limitd client (standard)', function () {
 
   it('should handle stream errors for callback-less PUT requests', function (done) {
     const client = new LimitdClient();
-    client.stream = {
-      writable: true,
-      write: function() {
-        throw new Error('write EPIPE');
-      }
-    };
+
+    client.on('ready', () => {
+      client.stream = {
+        writable: true,
+        write: function() {
+          throw new Error('write EPIPE');
+        }
+      };
+    });
 
     client.on('error', function(err) {
       assert.ok(err);
       assert.match(err.message, /write EPIPE/);
       done();
     });
+
     client.put('ip', '191.12.23.32');
   });
 

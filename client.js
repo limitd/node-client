@@ -276,16 +276,28 @@ LimitdClient.prototype._responseHandler = function(response, queuedRequest) {
 };
 
 LimitdClient.prototype._fireAndForgetRequest = function (request) {
-  if (!this.stream || !this.stream.writable) {
-    const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
-    return this.emit('error', err);
+  const operation = retry.operation(this.retryParams);
+  const client = this;
+
+  function handleError(err) {
+    if (operation.retry(err)) {
+      return;
+    }
+    client.emit('error', operation.mainError());
   }
 
-  try {
-    lpm.write(this.stream, Protocol.Request.encode(request));
-  } catch (e) {
-    return this.emit('error', e);
-  }
+  operation.attempt(() => {
+    if (!this.stream || !this.stream.writable) {
+      const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
+      return handleError(err);
+    }
+
+    try {
+      lpm.write(this.stream, Protocol.Request.encode(request));
+    } catch (e) {
+      handleError(e);
+    }
+  });
 };
 
 LimitdClient.prototype._directRequest = function (request, callback) {
