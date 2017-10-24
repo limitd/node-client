@@ -135,6 +135,10 @@ ShardClient.prototype.status = function(type, prefix, callback) {
   });
 };
 
+ShardClient.prototype.disconnect = function() {
+  this.clients.forEach(client => client.disconnect());
+};
+
 ShardClient.prototype.ping = function(callback) {
   async.each(
       this.clients,

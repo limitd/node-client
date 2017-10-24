@@ -70,6 +70,23 @@ describe('retry errors', function () {
     });
   });
 
+  it('should not retry after calling disconnect', function(done) {
+    var times = 0;
+
+    server.on('request', () => {
+      times++;
+      if (times === 2) {
+        client.disconnect();
+      }
+    });
+
+    client.take('ip', '1232.312.error', function (err) {
+      assert.equal(times, 2);
+      assert.match(err.message, /timeout/);
+      done();
+    });
+  });
+
   it('should not retry if disabled', function(done) {
     var times = 0;
 

@@ -129,6 +129,8 @@ function LimitdClient (options, done) {
   this.currentId = 0;
 
   this.protocol_version = options.protocol_version || 1;
+
+  this.pending_operations = new Set();
 }
 
 util.inherits(LimitdClient, EventEmitter);
@@ -240,6 +242,9 @@ LimitdClient.prototype._onNewStream = function (stream) {
 };
 
 LimitdClient.prototype.disconnect = function () {
+  this.pending_operations.forEach(po => po.stop());
+  this.pending_operations.clear();
+
   if (this.socket) {
     this.socket.disconnect();
   }
@@ -277,12 +282,15 @@ LimitdClient.prototype._responseHandler = function(response, queuedRequest) {
 
 LimitdClient.prototype._fireAndForgetRequest = function (request) {
   const operation = retry.operation(this.retryParams);
+  this.pending_operations.add(operation);
+
   const client = this;
 
   function handleError(err) {
     if (operation.retry(err)) {
       return;
     }
+    client.pending_operations.delete(operation);
     client.emit('error', operation.mainError());
   }
 
@@ -294,6 +302,7 @@ LimitdClient.prototype._fireAndForgetRequest = function (request) {
 
     try {
       lpm.write(this.stream, Protocol.Request.encode(request));
+      this.pending_operations.delete(operation);
     } catch (e) {
       handleError(e);
     }
@@ -321,20 +330,25 @@ LimitdClient.prototype._retriedRequest = function(request, callback) {
   }
 
   const operation = retry.operation(this.retryParams);
+  this.pending_operations.add(operation);
   operation.attempt(() => {
     this._protectedRequest(request, (err, result) => {
       if (err) {
         if (err instanceof disyuntor.DisyuntorError && err.reason === 'open') {
+          this.pending_operations.delete(operation);
           return callback(operation.errors()[0] || err);
         }
         if (err.message === 'Invalid bucket type') {
+          this.pending_operations.delete(operation);
           return callback(err);
         }
         if (operation.retry(err)) {
           return;
         }
+        this.pending_operations.delete(operation);
         return callback(operation.errors()[0] || err);
       }
+      this.pending_operations.delete(operation);
       callback(null, result);
     });
   });
