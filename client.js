@@ -295,6 +295,11 @@ LimitdClient.prototype._fireAndForgetRequest = function (request) {
   }
 
   operation.attempt(() => {
+    if (!this.pending_operations.has(operation)) {
+      //the operation was aborted.
+      return handleError(new Error('The operation was aborted'));
+    }
+
     if (!this.stream || !this.stream.writable) {
       const err = new Error(`Unable to send ${request.method} to limitd. The socket is closed.`);
       return handleError(err);
