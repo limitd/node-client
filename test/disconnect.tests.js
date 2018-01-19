@@ -6,8 +6,10 @@ describe('disconnect tests', function () {
     const server = new MockServer();
     server.listen(() => {
       const client = new LimitdClient({ protocol_version: 2 });
-      client.once('connect', () => server.close());
-      client.once('disconnect', () => done());
+      client.socket.reconnect = false;
+      client
+        .once('disconnect', () => done())
+        .once('connect', () => server.close());
     });
   });
 

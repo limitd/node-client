@@ -18,7 +18,7 @@
     "limitd-protocol": "limitd/protocol#v2.0.1",
     "lodash": "~3.7.0",
     "ms": "^1.0.0",
-    "reconnect-net": "0.0.0",
+    "reconnect-net": "^1.1.1",
     "retry": "^0.10.1",
     "tcp-client-failover": "^1.0.2"
   },

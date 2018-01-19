@@ -189,6 +189,12 @@ LimitdClient.prototype._connectUsingReconnect = function (done) {
                 }).on('close', (has_error) => {
                   this.emit('close', has_error);
                 }).on('error', (err) => {
+                  //Ignore these type of errors since we are propagating "disconnect"
+                  //and reconnect-core will keep atempting to reconnect.
+                  if (err.code === 'ECONNRESET' ||
+                      err.code === 'ECONNREFUSED') {
+                    return;
+                  }
                   this.emit('error', err);
                 }).on('reconnect', (n, delay) => {
                   this.emit('reconnect', n, delay);

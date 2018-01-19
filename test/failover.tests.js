@@ -4,7 +4,7 @@ const LimitdClient = require('../');
 const MockServer   = require('./MockServer');
 const async        = require('async');
 
-var PORT = 9231;
+var PORT = 15231;
 
 describe('limitd client failover', function() {
 
@@ -26,11 +26,12 @@ describe('limitd client failover', function() {
         }),
         timeout: 3000
       };
-
       client = new LimitdClient(config);
-      client.once('connect', () => {
-        setTimeout(done, 100);
-      });
+      client
+        .once('error', done)
+        .once('connect', () => {
+          setTimeout(done, 100);
+        });
     });
   });
 
