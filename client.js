@@ -184,6 +184,7 @@ LimitdClient.prototype._connectUsingReconnect = function (done) {
                   this._onNewStream(stream);
                   this.socket.once('disconnect', (err) => {
                     this.emit('disconnect', err);
+                    socket.emit('error', err);
                   });
                   self.emit('connect');
                 }).on('close', (has_error) => {
@@ -196,6 +197,7 @@ LimitdClient.prototype._connectUsingReconnect = function (done) {
                     return;
                   }
                   this.emit('error', err);
+                  socket.emit('error', err);
                 }).on('reconnect', (n, delay) => {
                   this.emit('reconnect', n, delay);
                 }).connect(port, host);
