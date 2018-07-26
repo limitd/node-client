@@ -228,6 +228,9 @@ LimitdClient.prototype._onNewStream = function (stream) {
 
   stream
   .pipe(lps.decode())
+  .on('error', (err) => {
+    this.emit('error', err);
+  })
   .pipe(Transform({
     objectMode: true,
     transform(chunk, enc, callback) {
