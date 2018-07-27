@@ -1,9 +1,20 @@
 const MockServer = require('./MockServer');
-const LimitdClient = require('../');
+const MockDecoder = require('./MockDecoder');
+const $require = require('proxyquire').noPreserveCache();
+
+const mockDecoder = new MockDecoder();
+const LimitdClient = $require('../Client', {
+  'length-prefixed-stream': {
+    decode: () => {
+      return mockDecoder;
+    }
+  }
+});
+
 const port = 54115;
 const assert = require('chai').assert;
 
-describe('epipe errors', function () {
+describe('error in length prefix stream decode', function () {
   const server = new MockServer({ port });
   var client;
 
@@ -27,7 +38,10 @@ describe('epipe errors', function () {
       assert.equal(err.message, 'fire');
       done();
     });
-    client.stream.emit('close');
-    client.stream.emit('error', new Error('fire'));
+
+    mockDecoder.emit('close');
+    mockDecoder.emit('error', new Error('fire'));
   });
 });
+
+

@@ -226,21 +226,25 @@ LimitdClient.prototype._onNewStream = function (stream) {
   stream.setKeepAlive(true, 50);
   stream.setNoDelay();
 
-  stream
-  .pipe(lps.decode())
-  .pipe(Transform({
-    objectMode: true,
-    transform(chunk, enc, callback) {
-      callback(null, Protocol.Response.decode(chunk));
-    }
-  }))
-  .on('data', (response) => {
-    const queuedRequest = this.pending_requests[response.request_id];
-    this._responseHandler(response, queuedRequest);
-  })
-  .on('error', (err) => {
+  const handleError = (err) => {
     this.emit('error', err);
-  });
+  };
+
+  stream
+    .on('error', handleError)
+    .pipe(lps.decode())
+    .on('error', handleError)
+    .pipe(Transform({
+      objectMode: true,
+      transform(chunk, enc, callback) {
+        callback(null, Protocol.Response.decode(chunk));
+      }
+    }))
+    .on('data', (response) => {
+      const queuedRequest = this.pending_requests[response.request_id];
+      this._responseHandler(response, queuedRequest);
+    })
+    .on('error', handleError);
 
   this.stream = stream;
 
