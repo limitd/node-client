@@ -16,8 +16,8 @@
     "length-prefixed-message": "^3.0.3",
     "length-prefixed-stream": "~1.4.0",
     "limitd-protocol": "limitd/protocol#v2.0.1",
-    "lodash": "~3.7.0",
-    "ms": "^1.0.0",
+    "lodash": "^4.17.5",
+    "ms": "^2.1.1",
     "reconnect-net": "^1.1.1",
     "retry": "^0.10.1",
     "tcp-client-failover": "^1.0.2"

@@ -14,12 +14,17 @@ const defaults = {
   port: 9231
 };
 
-function ShardClient(options) {
+function ShardClient(options, deps) {
+  deps = deps || {};
+
   if (typeof options !== 'object' || typeof options.shard !== 'object') {
     throw new Error('shard is required');
   }
 
   EventEmitter.call(this);
+
+  this._LimitdClient = deps.LimitdClient || LimitdClient;
+  this._dns = deps.dns || dns;
 
   this._options = _.extend({}, defaults, options);
   this._clientParams = _.omit(this._options, ['shard', 'port']);
@@ -48,7 +53,7 @@ util.inherits(ShardClient, EventEmitter);
 
 
 ShardClient.prototype.createClient = function(host) {
-  const client = new LimitdClient(_.extend(this._clientParams, { host }));
+  const client = new this._LimitdClient(_.extend(this._clientParams, { host }));
   if (client instanceof EventEmitter) {
     //map the events from LimitdClient.
     //Last parameter is always the underlying client.
@@ -65,7 +70,7 @@ ShardClient.prototype.createClient = function(host) {
 };
 
 ShardClient.prototype.discover = function() {
-  dns.resolve(this.autodiscover.address, this.autodiscover.type || 'A', (err, ips) => {
+  this._dns.resolve(this.autodiscover.address, this.autodiscover.type || 'A', (err, ips) => {
     setTimeout(() => this.discover(), this.autodiscover.refreshInterval);
     if (err) {
       return this.emit('error', err);
