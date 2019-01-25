@@ -1,8 +1,6 @@
 const ShardClient = require('../shard_client');
 const assert      = require('chai').assert;
 const _           = require('lodash');
-const proxyquire  = require('proxyquire').noPreserveCache();
-
 
 describe('ShardClient', function() {
   it('should fail if shard is not specified', function() {
@@ -11,22 +9,14 @@ describe('ShardClient', function() {
     assert.throws(() => new ShardClient({ shard: {} }), /unsupported shard configuration/);
   });
 
-  function ShardClientCtor(client) {
-    return proxyquire('../shard_client', {
-      './client': client
-    });
-  }
-
   it('should fail when no shards are available', function(done) {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ ] }
-    });
+    }, { LimitdClient });
 
     shardClient.put('test', 'foo', (err) => {
       assert.match(err.message, /no shard available/);
@@ -35,15 +25,13 @@ describe('ShardClient', function() {
   });
 
   it('should work when full url are provided', function() {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ 'limitd://host-2:9231', 'limitd://host-1:9231' ] }
-    });
+    }, { LimitdClient });
 
     assert.equal(shardClient.clients['host-1:9231'].host, 'limitd://host-1:9231');
     assert.equal(shardClient.clients['host-2:9231'].host, 'limitd://host-2:9231');
@@ -52,15 +40,13 @@ describe('ShardClient', function() {
   });
 
   it('should create a new client for each host', function() {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ 'host-2', 'host-1' ] }
-    });
+    }, { LimitdClient });
 
     assert.equal(shardClient.clients['host-1:9231'].host, 'limitd://host-1:9231');
     assert.equal(shardClient.clients['host-2:9231'].host, 'limitd://host-2:9231');
@@ -78,7 +64,7 @@ describe('ShardClient', function() {
 
 
   it('should invoke PUT on the client based on the hash', function(done) {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
       this.put = function(type, key, count, callback) {
         assert.equal(this.host, 'limitd://host-1:9231');
@@ -90,18 +76,15 @@ describe('ShardClient', function() {
       };
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
-      client,
       shard: { hosts: [ 'host-1', 'host-2' ] }
-    });
+    }, { LimitdClient });
 
     shardClient.put('ip', '10.0.0.1', 1, _.noop);
   });
 
   it('should invoke TAKE on the client based on the hash', function(done) {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
       this.take = function(type, key, count, callback) {
         assert.equal(this.host, 'limitd://host-1:9231');
@@ -113,17 +96,15 @@ describe('ShardClient', function() {
       };
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ 'host-1', 'host-2' ] }
-    });
+    }, { LimitdClient });
 
     shardClient.take('ip', '10.0.0.2', 1, _.noop);
   });
 
   it('should invoke PUT on the client based on the hash (2)', function(done) {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
       this.put = function(type, key, count, callback) {
         assert.equal(this.host, 'limitd://host-1:9231');
@@ -135,17 +116,15 @@ describe('ShardClient', function() {
       };
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ 'host-1', 'host-2' ] }
-    });
+    }, { LimitdClient });
 
     shardClient.put('ip', '10.0.0.2', 1, _.noop);
   });
 
   it('should call every host on status', function(done) {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
       this.status = function(type, prefix, callback) {
         if (this.host === 'limitd://host-1:9231') {
@@ -164,11 +143,9 @@ describe('ShardClient', function() {
       };
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ 'host-1', 'host-2' ] }
-    });
+    }, { LimitdClient });
     // Mock routing
     shardClient.getDestinationClient = function(type, key) {
       if (key === 'item1-from-host-1') {
@@ -176,7 +153,7 @@ describe('ShardClient', function() {
       } else {
         return this.clients['host-2:9231'];
       }
-    }
+    };
 
     shardClient.status('ip', '10.0.0.2', (err, response) => {
       if (err) { return done(err); }
@@ -189,7 +166,7 @@ describe('ShardClient', function() {
 
   describe('when adding a new host to the shard', function() {
     it('should not return instances from hosts that does not hold the instance anymore', function(done) {
-      const client = function(params) {
+      const LimitdClient = function(params) {
         this.host = params.host;
         this.status = function(type, prefix, callback) {
           // All hosts returns the same instances, the shard client must select
@@ -219,18 +196,13 @@ describe('ShardClient', function() {
         }
       };
 
-      const SharedClient = proxyquire('../shard_client', {
-        './client': client,
-        'dns': dns
-      });
-
-      const shardClient = new SharedClient({
+      const shardClient = new ShardClient({
         shard: {
           autodiscover: {
             address: 'foo.bar.company.example.com'
           }
         }
-      });
+      }, { LimitdClient, dns });
 
       // Mock routing
       shardClient.getDestinationClient = function(type, key) {
@@ -239,7 +211,7 @@ describe('ShardClient', function() {
         } else if (key === 'ip|2|limitd://host-b:9231') {
           return this.clients['host-b:9231'];
         }
-      }
+      };
 
       shardClient.status('ip', '10.0.0.2', (err, response) => {
         if (err) { return done(err); }
@@ -258,7 +230,7 @@ describe('ShardClient', function() {
   });
 
   it('should swallow error from client on status', function(done) {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
       this.status = function(type, prefix, callback) {
         if (this.host === 'limitd://host-2:9231') {
@@ -273,11 +245,9 @@ describe('ShardClient', function() {
       };
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ 'host-1', 'host-2' ] }
-    });
+    }, { LimitdClient });
 
     shardClient.status('ip', '10.0.0.2', (err, response) => {
       if (err) { return done(err); }
@@ -292,7 +262,7 @@ describe('ShardClient', function() {
 
   it('should ping all hosts on ping', function(done) {
     const pinged = [];
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
       this.ping = function(callback) {
         pinged.push(this.host);
@@ -300,11 +270,9 @@ describe('ShardClient', function() {
       };
     };
 
-    const ShardClient = ShardClientCtor(client);
-
     const shardClient = new ShardClient({
       shard: { hosts: [ 'host-1', 'host-2' ] }
-    });
+    }, { LimitdClient });
 
     shardClient.ping((err) => {
       if (err) { return done(err); }
@@ -316,7 +284,7 @@ describe('ShardClient', function() {
 
 
   it('should autodiscover limitd shards', function() {
-    const client = function(params) {
+    const LimitdClient = function(params) {
       this.host = params.host;
     };
 
@@ -328,18 +296,13 @@ describe('ShardClient', function() {
       }
     };
 
-    const SharedClient = proxyquire('../shard_client', {
-      './client': client,
-      'dns': dns
-    });
-
-    const shardClient = new SharedClient({
+    const shardClient = new ShardClient({
       shard: {
         autodiscover: {
           address: 'foo.bar.company.example.com'
         }
       }
-    });
+    }, { LimitdClient, dns });
 
     assert.equal(shardClient.clients['host-a:9231'].host, 'limitd://host-a:9231');
     assert.equal(shardClient.clients['host-b:9231'].host, 'limitd://host-b:9231');
@@ -349,7 +312,7 @@ describe('ShardClient', function() {
 
   it('should add new shards', function(done) {
     var clientsCreated = 0;
-    const client = function(params) {
+    const LimitdClient = function(params) {
       clientsCreated++;
       this.host = params.host;
     };
@@ -369,19 +332,14 @@ describe('ShardClient', function() {
       }
     };
 
-    const SharedClient = proxyquire('../shard_client', {
-      './client': client,
-      'dns': dns
-    });
-
-    const shardClient = new SharedClient({
+    const shardClient = new ShardClient({
       shard: {
         autodiscover: {
           refreshInterval: 10,
           address: 'foo.bar.company.example.com'
         }
       }
-    });
+    }, { LimitdClient, dns });
 
 
     shardClient.on('new client', () => {
@@ -405,7 +363,7 @@ describe('ShardClient', function() {
   it('should remove shards', function(done) {
     var clientsCreated = 0;
     var clients = [];
-    const client = function(params) {
+    const LimitdClient = function(params) {
       clientsCreated++;
       this.host = params.host;
       this.disconnect = () => this.disconnected = true;
@@ -427,19 +385,14 @@ describe('ShardClient', function() {
       }
     };
 
-    const SharedClient = proxyquire('../shard_client', {
-      './client': client,
-      'dns': dns
-    });
-
-    const shardClient = new SharedClient({
+    const shardClient = new ShardClient({
       shard: {
         autodiscover: {
           refreshInterval: 10,
           address: 'foo.bar.company.example.com'
         }
       }
-    });
+    }, { LimitdClient, dns });
 
 
     shardClient.once('new client', () => {
@@ -461,3 +414,4 @@ describe('ShardClient', function() {
 
 
 });
+
