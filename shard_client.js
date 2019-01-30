@@ -101,7 +101,7 @@ ShardClient.prototype.getDestinationClient = function(type, key) {
   return this.clients[this.ring.get(`${type}:${key}`)];
 };
 
-['reset', 'put', 'take', 'wait'].forEach(method => {
+['reset', 'put', 'take', 'wait', 'get'].forEach(method => {
   ShardClient.prototype[method] = function(type, key) {
     const client = this.getDestinationClient(type, key);
     if (!client) {

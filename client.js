@@ -450,6 +450,28 @@ LimitdClient.prototype.put = function (type, key, count, done) {
   return this._retriedRequest(request, done);
 };
 
+LimitdClient.prototype.get = function (type, key, done) {
+  const fireAndForget = typeof done !== 'function';
+
+  if (typeof key !== 'string') {
+    key = '';
+  }
+
+  const request = {
+    'id':     this.nextId(),
+    'type':   type,
+    'key':    key,
+    'method': 'GET',
+    'skipResponse': fireAndForget
+  };
+
+  if (fireAndForget) {
+    return this._fireAndForgetRequest(request);
+  }
+
+  return this._retriedRequest(request, done);
+};
+
 LimitdClient.prototype.status = function (type, key, done) {
   if (typeof key !== 'string') {
     key = '';

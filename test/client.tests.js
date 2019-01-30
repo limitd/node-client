@@ -66,6 +66,17 @@ describe('limitd client (standard)', function () {
     });
   });
 
+  it('should be able to send GET requests', function (done) {
+    server.once('request', function (request) {
+      assert.isNumber(request.id);
+      assert.equal(request.method, 'GET');
+      assert.equal(request.type, 'ip');
+      done();
+    });
+
+    client.get('ip', '192.12.23.32');
+  });
+
   it('should be able to send PING requests', function (done) {
     server.once('request', function (request) {
       assert.isNumber(request.id);

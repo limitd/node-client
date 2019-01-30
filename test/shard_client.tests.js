@@ -66,7 +66,7 @@ describe('ShardClient', function() {
     assert.equal(shardClient.clients['host-2:9231'].host, 'limitd://host-2:9231');
   });
 
-  ['take', 'put', 'wait', 'status', 'on', 'once', 'ping'].forEach(method => {
+  ['take', 'put', 'wait', 'status', 'on', 'once', 'ping', 'get'].forEach(method => {
     it(`should define ${method}`, function() {
       const shardClient = new ShardClient({
         client: ()=>{},
@@ -120,6 +120,28 @@ describe('ShardClient', function() {
     });
 
     shardClient.take('ip', '10.0.0.2', 1, _.noop);
+  });
+
+  it('should invoke GET on the client based on the hash', function(done) {
+    const client = function(params) {
+      this.host = params.host;
+      this.get = function(type, key, callback) {
+        assert.equal(this.host, 'limitd://host-1:9231');
+        assert.equal(type, 'ip');
+        assert.equal(key, '10.0.0.1');
+        assert.isFunction(callback);
+        done();
+      };
+    };
+
+    const ShardClient = ShardClientCtor(client);
+
+    const shardClient = new ShardClient({
+      client,
+      shard: { hosts: [ 'host-1', 'host-2' ] }
+    });
+
+    shardClient.get('ip', '10.0.0.1', _.noop);
   });
 
   it('should invoke PUT on the client based on the hash (2)', function(done) {
