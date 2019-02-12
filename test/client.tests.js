@@ -66,15 +66,40 @@ describe('limitd client (standard)', function () {
     });
   });
 
-  it('should be able to send GET requests', function (done) {
-    server.once('request', function (request) {
-      assert.isNumber(request.id);
-      assert.equal(request.method, 'GET');
-      assert.equal(request.type, 'ip');
+  it('should require a key for GET requests', (done) => {
+    client.get('ip', ['bar'], (err) => {
+      assert.isDefined(err);
+      assert.equal(err.toString(), 'Error: key must be a string');
       done();
     });
 
-    client.get('ip', '192.12.23.32');
+  });
+
+  it('should be able to send GET requests', function (done) {
+    server.once('request', function (request, reply) {
+      assert.isNumber(request.id);
+      assert.equal(request.method, 'GET');
+      assert.equal(request.type, 'ip');
+
+      const response = {
+        request_id: request.id,
+        'get': {
+          remaining:  15,
+          reset:      22222222,
+          limit:      101
+        }
+      };
+      reply(response);
+    });
+
+    client.get('ip', '192.12.23.32', (err, response) => {
+      assert.isNull(err);
+      assert.isDefined(response);
+      assert.equal(response.remaining, 15);
+      assert.equal(response.reset, 22222222);
+      assert.equal(response.limit, 101);
+      done();
+    });
   });
 
   it('should be able to send PING requests', function (done) {
