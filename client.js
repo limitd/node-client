@@ -451,10 +451,8 @@ LimitdClient.prototype.put = function (type, key, count, done) {
 };
 
 LimitdClient.prototype.get = function (type, key, done) {
-  const fireAndForget = typeof done !== 'function';
-
   if (typeof key !== 'string') {
-    key = '';
+    return done(new Error('key must be a string'));
   }
 
   const request = {
@@ -462,12 +460,8 @@ LimitdClient.prototype.get = function (type, key, done) {
     'type':   type,
     'key':    key,
     'method': 'GET',
-    'skipResponse': fireAndForget
+    'skipResponse': false
   };
-
-  if (fireAndForget) {
-    return this._fireAndForgetRequest(request);
-  }
 
   return this._retriedRequest(request, done);
 };
