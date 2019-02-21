@@ -15,7 +15,7 @@
     "hashring": "^3.2.0",
     "length-prefixed-message": "^3.0.3",
     "length-prefixed-stream": "~1.4.0",
-    "limitd-protocol": "kusold/protocol#get",
+    "limitd-protocol": "limitd/protocol#v2.1.0",
     "lodash": "~3.7.0",
     "ms": "^1.0.0",
     "reconnect-net": "^1.1.1",
