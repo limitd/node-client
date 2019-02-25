@@ -130,5 +130,3 @@ This record will be poll every 5 minutes.
 ## License
 
 MIT 2015 - AUTH0 INC.
-
-
