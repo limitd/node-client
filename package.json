@@ -1,6 +1,6 @@
 {
   "name": "limitd-client",
-  "version": "2.13.2",
+  "version": "2.14.0",
   "description": "limitd client for node.js",
   "main": "index.js",
   "scripts": {
