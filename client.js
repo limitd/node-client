@@ -450,6 +450,22 @@ LimitdClient.prototype.put = function (type, key, count, done) {
   return this._retriedRequest(request, done);
 };
 
+LimitdClient.prototype.get = function (type, key, done) {
+  if (typeof key !== 'string') {
+    return done(new Error('key must be a string'));
+  }
+
+  const request = {
+    'id':     this.nextId(),
+    'type':   type,
+    'key':    key,
+    'method': 'GET',
+    'skipResponse': false
+  };
+
+  return this._retriedRequest(request, done);
+};
+
 LimitdClient.prototype.status = function (type, key, done) {
   if (typeof key !== 'string') {
     key = '';
